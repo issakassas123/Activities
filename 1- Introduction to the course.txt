@@ -1,0 +1,31 @@
+*. Introduction to the Course
+	*. Technologies Used
+		This course focuses on building a full-stack web application using the following technologies:
+			*. ASP.NET Core – Backend framework for building robust RESTful APIs.
+			*. React – Frontend library for building interactive user interfaces.
+			*. MobX / React Query – State management and data fetching tools to handle client-side data efficiently.
+
+*. Setting Up the Developer Environment
+To follow along with the course and run the project locally, ensure you have the following tools installed on your system:
+	*. .NET 9
+		Download and install the latest version of the .NET 9 SDK:
+		🔗 https://dotnet.microsoft.com/en-us/download
+
+	*. Node.js or Node Version Manager (NVM)
+		Install Node.js or use NVM to manage multiple Node versions:
+		🔗 https://nodejs.org/en
+
+	*. Integrated Development Environment (IDE)
+		You can use any of the following IDEs:
+			*. Visual Studio (for full .NET development)
+			*. Visual Studio Code (lightweight and flexible)
+			*. JetBrains Rider (cross-platform IDE for .NET)
+			🔗 https://code.visualstudio.com
+
+	*. Postman
+		Used for testing and validating API endpoints.
+		🔗 https://postman.com/downloads
+
+	*. Git
+		Version control system for managing source code and collaboration.
+		🔗 https://git-scm.com

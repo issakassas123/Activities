@@ -1,0 +1,204 @@
+*. A walking skeleton is a minimal implementation of the system that performs a small end-to-end function.
+It does not need to use the final architecture, but it should connect the main architectural components.
+The architecture and functionality can then evolve in parallel.
+
+*. Learning Goals
+	*. Introduction to Clean Architecture
+		*. API
+			*. Application(Business Logic Layer)
+				*. Domain (Data Layer)
+				*. Persistence
+					*. Domain
+					
+	*. Creating the .Net projects
+		*. Project Setup
+			*. Create a directory named Activities using the command line:
+				mkdir Activities
+			*. Inside this directory, create a blank solution containing four projects:
+				*. Web API project: API
+				*. Class Library project: Application
+				*. Class Library project: Domain
+				*. Class Library project: Persistence
+			*. Add all projects to the solution Activities.sln.
+
+	*. Project architecture
+		*. Project References
+			Establish project dependencies as follows:
+				Domain -> Application
+				Domain -> Persistence
+				Persistence -> Application 
+				Application -> API
+				Persistence -> API
+
+	*. Install Nuget Packages
+		*. API Project
+			<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9" />
+			<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.10" />   
+			<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.10" />
+
+		*. Persistence Project
+			<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.10" />
+    		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.10" />
+
+	*. Using the .NET CLI
+		*. Show SDK versions:
+			dotnet --info
+		*. List available templates:
+			dotnet new list
+		*. Create a blank solution:
+			dotnet new sln
+		*. Create a Web API project:
+			dotnet new webapi -n API -controllers (-n means name of project & -controllers means add controllers directory)
+		*. Create a Class Library project:
+			dotnet new classlib -n Domain
+		*. Create a gitignore project:
+			dotnet new gitignore
+		*. Add a project to the solution:
+			dotnet sln add API
+		*. Build the project or solution:
+			dotnet build
+		*. Run or watch the project:
+			dotnet run
+			dotnet watch
+		*. Install EF Core tools (for migrations):
+			dotnet tool install --global dotnet-ef --version 9.0.0
+		*. Add a migration:
+			dotnet ef migrations add InitialCreate -p Persistence -s API
+		*. Update the database (creating activities.db):
+			dotnet ef database update -p Persistence -s API
+		*. Remove a migration:
+			dotnet ef migrations remove -p Persistence -s API
+		*. Drop the database:
+			dotnet ef database drop -p Persistence -s API (-p means project)
+
+	*. Project Files
+			*. API Project
+				*. HTTPS Configuration (launchSettings.json):
+					{
+					"$schema": "https://json.schemastore.org/launchsettings.json",
+					"profiles": {
+						"https": {
+						"commandName": "Project",
+						"dotnetRunMessages": true,
+						"launchBrowser": false,
+						"applicationUrl": "https://localhost:7026",
+						"environmentVariables": {
+							"ASPNETCORE_ENVIRONMENT": "Development"
+						}
+						}
+					}
+					}
+
+					*. Remove the API.http file
+					*. Program.cs configuration:
+						using Microsoft.EntityFrameworkCore;
+
+						var builder = WebApplication.CreateBuilder(args);
+
+						// Add services to the container.
+						builder.Services.AddControllers();
+						*. Add AppDbContext to services
+							builder.Services.AddDbContext<AppDbContext>(options =>
+							{
+								options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
+							});
+
+						// Configure the HTTP request pipeline.
+						app.MapControllers();
+						app.Run();
+
+					*. Controllers
+						BaseApiController.cs
+						ActivitiesController.cs
+						(Note: ControllerBase is used for APIs without views.)
+
+			*. Domain Project
+				*. Create Activity.cs (Model)
+					namespace Domain;
+
+					public class Activity
+					{
+						public string Id { get; set; } = Guid.NewGuid().ToString();
+						public required string? Title { get; set; }
+						public required string? Description { get; set; }
+						public required string? Category { get; set; }
+						public DateTime Date { get; set; }
+						public required string? City { get; set; }
+						public required string? Venue { get; set; }
+						public bool IsCancelled { get; set; }
+						public double? Longitude { get; set; }
+						public double? Latitude { get; set; }
+					}
+
+			*. Persistence
+				*. Create AppDbContext.cs
+					using Domain;
+					using Microsoft.EntityFrameworkCore;
+
+					namespace Persistence;
+
+					public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+					{
+						public required DbSet<Activity> Activities { get; set; }
+					}
+
+					*. After that go back to API Project to add AppDbContext to services
+
+	*. Running the .Net application
+			Run the application from the API project using:
+				dotnet watch
+
+	*. Entity Framework Configuration
+		*. In the API project’s appsettings.json, define the connection string:
+			"ConnectionStrings": {
+				"DefaultConnection":"Data source=activities.db"
+			}
+
+	*. Seeding Data
+		*. Create a DBInitializer class inside the Persistence project.
+		*. Update Program.cs in the API project to apply migrations and seed data:
+			using var scope = app.Services.CreateScope();
+			var services = scope.ServiceProvider;
+
+			try
+			{
+				var context = services.GetRequiredService<AppDbContext>();
+				await context.Database.MigrateAsync();
+				await DbInitializer.SeedData(context);
+			}
+			catch(Exception ex)
+			{
+				var logger = services.GetRequiredService<ILogger<Program>>();
+				logger.LogError(ex ,"Ann error occured during migration. ");
+			}
+
+	*. Code-First Migrations
+		*. Create Migration → Generates a Migrations folder inside the Persistence project.
+		*. Update Database → Creates the activities.db database inside the API project.
+
+	*. Postman Setup
+		*. Create a workspace named Activities.
+		*. Add a new request to test the API endpoints.
+
+	*. Git Source Control
+		*. Open the Source Control tab.
+		*. Initialize Repository
+				*. Create a gitignore project 
+				*. Create a .gitignore file (manually exclude .db and appsettings.json).
+				*. Commit all initial changes.
+			*. Create GitHub Repository
+				Name it Activities (public or private).
+			*. Push to GitHub
+				git branch -M main
+				git remote add origin https://github.com/<username>/Activities.git
+				git push -u origin main
+
+*. Summary
+	You have successfully implemented a clean architecture with four projects:
+	*. API – Entry point and presentation layer
+	*. Application – Business logic layer
+	*. Domain – Core entities and domain models
+	*. Persistence – Database context and data access
+
+	This serves as the foundation for scalable and maintainable .NET applications
+	following best practices in Clean Architecture.

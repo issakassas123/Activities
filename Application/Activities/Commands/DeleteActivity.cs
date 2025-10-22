@@ -1,6 +1,4 @@
-using Domain;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Persistence;
 
 namespace Application.Activities.Commands;
@@ -23,5 +21,4 @@ public class DeleteActivity
             await context.SaveChangesAsync(cancellationToken);
         }
     }
-
 }

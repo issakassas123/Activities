@@ -1,0 +1,69 @@
+import { Group } from "@mui/icons-material";
+import { AppBar, Box, Button, Container, MenuItem, Toolbar, Typography } from "@mui/material";
+
+export default function NavBar() {
+    const typography = "Activities";
+
+    return (
+        <Box sx={{ flexGrow: 1 }}>
+            <AppBar position="static" sx={{
+                backgroundImage: 'linear-gradient(140deg, #182a73 5%, #218aae 65%, #20a7ac 85%)'
+            }}>
+                <Container maxWidth='xl'>
+                    <Toolbar sx={{
+                        display: 'flex', justifyContent: 'space-between'
+                    }}>
+                        <Box>
+                            <MenuItem sx={{
+                                display: 'flex', gap: 2 
+                            }}>
+                                <Group fontSize="large" />
+                                <Typography variant="h4" fontWeight='bold'>{typography}</Typography>
+                            </MenuItem>
+                        </Box>
+                        <Box sx={{
+                            display: 'flex'
+                        }}>
+                            <MenuItem sx={{
+                                fontSize: '1.2rem',
+                                textTransform: 'uppercase',
+                                fontWeight: 'bold'
+                            }}>
+                                Activities
+                            </MenuItem>
+                            <MenuItem sx={{
+                                fontSize: '1.2rem',
+                                textTransform: 'uppercase',
+                                fontWeight: 'bold'
+                            }}>
+                                About
+                            </MenuItem>
+                            <MenuItem sx={{
+                                fontSize: '1.2rem',
+                                textTransform: 'uppercase',
+                                fontWeight: 'bold'
+                            }}>
+                                Contact
+                            </MenuItem>
+                        </Box>
+                        <Button size="large" variant="contained" color="warning"> Create Activity</Button>
+                        {/* <IconButton
+                            size="large"
+                            edge="start"
+                            color="inherit"
+                            aria-label="menu"
+                            sx={{ mr: 2 }}
+                        >
+                            <Menu />
+                        </IconButton>
+                        <Typography variant="h6" component="div">
+                            News
+                        </Typography>
+                        <Button color="inherit">Login</Button> */}
+                    </Toolbar>
+                </Container>
+
+            </AppBar>
+        </Box>
+    )
+}
