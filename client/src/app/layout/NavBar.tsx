@@ -1,7 +1,11 @@
 import { Group } from "@mui/icons-material";
 import { AppBar, Box, Button, Container, MenuItem, Toolbar, Typography } from "@mui/material";
 
-export default function NavBar() {
+type Props = {
+    openForm: () => void;
+}
+
+export default function NavBar({ openForm }: Props) {
     const typography = "Activities";
 
     return (
@@ -15,7 +19,7 @@ export default function NavBar() {
                     }}>
                         <Box>
                             <MenuItem sx={{
-                                display: 'flex', gap: 2 
+                                display: 'flex', gap: 2
                             }}>
                                 <Group fontSize="large" />
                                 <Typography variant="h4" fontWeight='bold'>{typography}</Typography>
@@ -46,23 +50,15 @@ export default function NavBar() {
                                 Contact
                             </MenuItem>
                         </Box>
-                        <Button size="large" variant="contained" color="warning"> Create Activity</Button>
-                        {/* <IconButton
-                            size="large"
-                            edge="start"
-                            color="inherit"
-                            aria-label="menu"
-                            sx={{ mr: 2 }}
-                        >
-                            <Menu />
-                        </IconButton>
-                        <Typography variant="h6" component="div">
-                            News
-                        </Typography>
-                        <Button color="inherit">Login</Button> */}
+                        <Button 
+                            size="large" 
+                            variant="contained" 
+                            color="warning" 
+                            onClick={openForm}>
+                                Create Activity
+                        </Button>
                     </Toolbar>
                 </Container>
-
             </AppBar>
         </Box>
     )
