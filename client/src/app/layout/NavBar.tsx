@@ -50,12 +50,12 @@ export default function NavBar({ openForm }: Props) {
                                 Contact
                             </MenuItem>
                         </Box>
-                        <Button 
-                            size="large" 
-                            variant="contained" 
-                            color="warning" 
+                        <Button
+                            size="large"
+                            variant="contained"
+                            color="warning"
                             onClick={openForm}>
-                                Create Activity
+                            Create Activity
                         </Button>
                     </Toolbar>
                 </Container>

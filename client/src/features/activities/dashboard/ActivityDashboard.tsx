@@ -16,21 +16,21 @@ type Props = {
 }
 
 export default function ActivityDashboard({
-  activities, 
-  selectedActivity, 
-  editMode, 
-  selectActivity, 
-  cancelSelectActivity, 
-  openForm, 
-  closeForm, 
-  submitForm, 
+  activities,
+  selectedActivity,
+  editMode,
+  selectActivity,
+  cancelSelectActivity,
+  openForm,
+  closeForm,
+  submitForm,
   deleteActivity
 }: Props) {
   return (
     <Grid container spacing={3}>
       <Grid size={7}>
-        <ActivityList 
-          activities={activities} 
+        <ActivityList
+          activities={activities}
           selectActivity={selectActivity}
           deleteActivity={deleteActivity} />
       </Grid>
