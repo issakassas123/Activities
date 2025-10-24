@@ -1,0 +1,440 @@
+*. Learning Goals
+    *. Understand React folder structure and best practices
+    *. Define and use TypeScript interfaces
+    *. Utilize Material UI components
+    *. Build and manage basic forms in React
+    *. Implement full CRUD (Create, Read, Update, Delete) operations
+
+*. Folder structure in React
+    Before proceeding, review the official React documentation on folder structure:
+    🔗 React Documentation – Folder Structure
+    https://legacy.reactjs.org/docs/faq-structure.html
+
+    *. Creating the Project Structure
+        Inside the src directory, create the following folders:
+        src
+        │
+        ├── app
+        │   └── layout
+        │       ├── App.tsx
+        │       └── styles.css
+        │
+        └── features
+            └── activities
+                ├── dashboard
+                ├── details
+                └── form
+
+    *. Steps
+        *. Move the App.tsx file into the layout folder.
+        *. Move the index.css file into the layout folder and rename it to styles.css.
+        *. Delete the App.css file — it’s no longer needed.
+        *. Delete the assets directory. We’ll store all static files (e.g., images) inside the public/images directory instead.
+        *. Update the import paths for assets and App.tsx inside main.tsx to reflect the new folder structure.
+        
+*. Application File Responsibilities
+    *. app/layout:
+        This folder will contain layout and navigation components that structure your app visually.
+        *. Navbar Component
+            Create a navigation bar with basic styling using Material UI or custom CSS.
+            Example contents: logo, navigation links (Dashboard, Create Activity, etc.).
+            
+    *. features/activities/dashboard
+        This folder handles the main activity dashboard.
+        *. Dashboard Component
+            *. Displays all activities using Material UI cards or list components.
+            *. Integrates CRUD functionalities:
+                *. Read: Fetch and display a list of activities.
+                *. Update: Allow selecting and editing an existing activity.
+                *. Delete: Enable deleting an activity.
+            *. Uses props passed from App.tsx for state and actions.
+        
+        *. features/activities/details
+            This folder contains the Activity Details component.
+            *. Details Component
+            *. Displays details of a single activity when selected from the dashboard.
+            *. Includes options to Cancel or Edit the selected activity.
+            *. Receives data and functions as props from App.tsx.
+        
+        *. features/activities/form
+            This folder contains the Activity Form component.
+            *. Form Component
+                *. Used to create or edit an activity.
+
+                *. Includes input fields for all relevant properties (e.g., title, date, category).
+                *. On form submission:
+                    *. If creating → adds a new activity.
+                    *. If editing → updates an existing one.
+
+                *. Includes Cancel and Submit buttons.
+
+    *. Updating App.tsx
+        In App.tsx, handle all global state and logic, including:
+        *. Maintaining the list of activities using the useState hook.
+        *. Handling selectedActivity, editMode, and formMode state variables.
+        *. Defining handler functions for:
+            handleSelectActivity
+            handleCancelSelectActivity
+            handleDeleteActivity
+            handleFormOpen
+            handleFormClose
+            handleCreateOrEditActivity
+
+        Then, pass these handlers and state values as props to child components (Dashboard, Details, Form, etc.).
+    
+    *. NavBar.tsx
+        import { Group } from "@mui/icons-material";
+        import { AppBar, Box, Button, Container, MenuItem, Toolbar, Typography } from "@mui/material";
+
+        type Props = {
+            openForm: () => void;
+        }
+
+        export default function NavBar({ openForm }: Props) {
+            const typography = "Activities";
+
+            return (
+                <Box sx={{ flexGrow: 1 }}>
+                    <AppBar position="static" sx={{
+                        backgroundImage: 'linear-gradient(140deg, #182a73 5%, #218aae 65%, #20a7ac 85%)'
+                    }}>
+                        <Container maxWidth='xl'>
+                            <Toolbar sx={{
+                                display: 'flex', justifyContent: 'space-between'
+                            }}>
+                                <Box>
+                                    <MenuItem sx={{
+                                        display: 'flex', gap: 2
+                                    }}>
+                                        <Group fontSize="large" />
+                                        <Typography variant="h4" fontWeight='bold'>{typography}</Typography>
+                                    </MenuItem>
+                                </Box>
+                                <Box sx={{
+                                    display: 'flex'
+                                }}>
+                                    <MenuItem sx={{
+                                        fontSize: '1.2rem',
+                                        textTransform: 'uppercase',
+                                        fontWeight: 'bold'
+                                    }}>
+                                        Activities
+                                    </MenuItem>
+                                    <MenuItem sx={{
+                                        fontSize: '1.2rem',
+                                        textTransform: 'uppercase',
+                                        fontWeight: 'bold'
+                                    }}>
+                                        About
+                                    </MenuItem>
+                                    <MenuItem sx={{
+                                        fontSize: '1.2rem',
+                                        textTransform: 'uppercase',
+                                        fontWeight: 'bold'
+                                    }}>
+                                        Contact
+                                    </MenuItem>
+                                </Box>
+                                <Button
+                                    size="large"
+                                    variant="contained"
+                                    color="warning"
+                                    onClick={openForm}>
+                                    Create Activity
+                                </Button>
+                            </Toolbar>
+                        </Container>
+                    </AppBar>
+                </Box>
+            )
+        }
+
+    *. ActivityDashboard.tsx
+        import { Grid } from "@mui/material";
+        import ActivityList from "./ActivityList";
+        import ActivityDetail from "../details/ActivityDetail";
+        import ActivityForm from "../form/ActivityForm";
+
+        type Props = {
+            activities: Activity[];
+            selectActivity: (id: string) => void;
+            selectedActivity?: Activity;
+            cancelSelectActivity: () => void;
+            openForm: (id: string) => void;
+            closeForm: () => void;
+            editMode: boolean;
+            submitForm: (activity: Activity) => void;
+            deleteActivity: (id: string) => void;
+        }
+
+        export default function ActivityDashboard({
+            activities, 
+            selectedActivity, 
+            editMode, 
+            selectActivity, 
+            cancelSelectActivity, 
+            openForm, 
+            closeForm, 
+            submitForm, 
+            deleteActivity
+        }: Props) {
+            return (
+                <Grid container spacing={3}>
+                <Grid size={7}>
+                    <ActivityList 
+                    activities={activities} 
+                    selectActivity={selectActivity}
+                    deleteActivity={deleteActivity} />
+                </Grid>
+                <Grid size={5}>
+                    {
+                    selectedActivity && !editMode &&
+                    <ActivityDetail
+                        activity={selectedActivity}
+                        cancelSelectActivity={cancelSelectActivity}
+                        openForm={openForm} />
+                    }
+
+                    {
+                    editMode && <ActivityForm
+                        closeForm={closeForm}
+                        activity={selectedActivity}
+                        submitForm={submitForm} />
+
+                    }
+                </Grid>
+                </Grid>
+            );
+        }
+
+    *. ActivityCard.tsx
+        import { Box, Button, Card, CardActions, CardContent, Chip, Typography } from "@mui/material"
+
+        type Props = {
+            activity: Activity;
+            selectActivity: (id: string) => void;
+            deleteActivity: (id: string) => void;
+        }
+
+        export default function ActivityCard({ activity, selectActivity, deleteActivity }: Props) {
+            return (
+                <Card sx={{
+                    borderRadius: 3
+                }}>
+                    <CardContent>
+                        <Typography variant="h5">{activity.title}</Typography>
+                        <Typography sx={{
+                            color: 'text.secondary'
+                        }}>{activity.date}</Typography>
+                        <Typography variant="body2">{activity.description}</Typography>
+                        <Typography variant="subtitle1">{activity.city} / {activity.venue}</Typography>
+                    </CardContent>
+                    <CardActions sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        pb: 2
+                    }}>
+                        <Chip label={activity.category} variant="outlined"></Chip>
+                        <Box display='flex' gap={2}>
+                            <Button onClick={() => selectActivity(activity.id)} size="medium" variant="contained">View</Button>
+                            <Button onClick={() => deleteActivity(activity.id)} size="medium" color="error" variant="contained">Delete</Button>
+                        </Box>
+                    </CardActions>
+                </Card>
+            )
+        }
+
+    *. ActivityDetail.tsx
+        import { Button, Card, CardActions, CardContent, CardMedia, Typography } from "@mui/material"
+
+        type Props = {
+            activity: Activity;
+            cancelSelectActivity: () => void;
+            openForm: (id: string) => void;
+        }
+
+        export default function ActivityDetail({ activity, cancelSelectActivity, openForm }: Props) {
+            return (
+                <Card sx={{
+                    borderRadius: 3
+                }}>
+                    <CardMedia component='img' src={
+                        `/images/categoryImages/${activity.category}.jpg`
+                    } />
+
+                    <CardContent>
+                        <Typography variant="h5">{activity.title}</Typography>
+                        <Typography variant="subtitle1" fontWeight='light'>{activity.date}</Typography>
+                        <Typography variant="body1">{activity.description}</Typography>
+                    </CardContent>
+                    <CardActions>
+                        <Button color="primary" onClick={() => openForm(activity.id)}>Edit</Button>
+                        <Button color="inherit" onClick={cancelSelectActivity}>Cancel</Button>
+                    </CardActions>
+                </Card>
+            )
+        }
+
+    *. ActivityList.tsx
+        import { Box } from '@mui/material'
+        import ActivityCard from './ActivityCard'
+
+        type Props = {
+            activities: Activity[];
+            selectActivity: (id: string) => void;
+            deleteActivity: (id: string) => void;
+        }
+
+        export default function ActivitList({ activities, selectActivity, deleteActivity }: Props) {
+            return (
+                <Box sx={{
+                    display: 'flex', flexDirection: 'column', gap: 3
+                }}>
+                    {activities.map(activity => (
+                        <ActivityCard
+                            activity={activity}
+                            selectActivity={selectActivity}
+                            deleteActivity={deleteActivity}
+                            key={activity.id} />
+                    ))}
+                </Box>
+            )
+        }
+
+    *. ActivityForm.tsx
+        import { Box, Button, Paper, TextField, Typography } from '@mui/material'
+        import type { FormEvent } from 'react';
+
+        type Props = {
+            closeForm: () => void;
+            activity?: Activity;
+            submitForm: (activity: Activity) => void;
+        }
+
+        export default function ActivityForm({ closeForm, activity, submitForm }: Props) {
+            const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+                event.preventDefault();
+
+                const formData = new FormData(event.currentTarget);
+                const data: { [key: string]: FormDataEntryValue } = {};
+                formData.forEach((value, key) => {
+                    data[key] = value;
+                });
+
+                submitForm(data as unknown as Activity);
+            }
+
+            return (
+                <Paper sx={{
+                    borderRadius: 3,
+                    padding: 3
+                }}>
+                    <Typography variant='h5' gutterBottom color='primary'>Create Activity</Typography>
+                    <Box component='form' onSubmit={handleSubmit} display='flex' flexDirection='column' gap={3}>
+                        <TextField name='title' label='Title' defaultValue={activity?.title}></TextField>
+                        <TextField name='description' label='Description' multiline rows={3} defaultValue={activity?.description}></TextField>
+                        <TextField name='categoryt' label='Category' defaultValue={activity?.category}></TextField>
+                        <TextField name='date' label='Date' type='date' defaultValue={activity?.date}></TextField>
+                        <TextField name='city' label='City' defaultValue={activity?.city}></TextField>
+                        <TextField name='venue' label='Venue' defaultValue={activity?.venue}></TextField>
+                        <Box display='flex' justifyContent='end' gap={3}>
+                            <Button color='inherit' onClick={closeForm}>Cancel</Button>
+                            <Button color='success' variant='contained' type='submit'>Submit</Button>
+                        </Box>
+                    </Box>
+                </Paper>
+            )
+        }
+
+    *. App.tsx
+        import { Box, Container, CssBaseline } from "@mui/material";
+        import axios from "axios";
+        import { useEffect, useState } from "react";
+        import NavBar from "./NavBar";
+        import ActivityDashboard from "../../features/activities/dashboard/ActivityDashboard";
+
+        function App() {
+        const [activities, setActivities] = useState<Activity[]>([]);
+        const [selectedActivity, setSelectedActivity] = useState<Activity | undefined>(undefined);
+        const [editMode, setEditMode] = useState(false);
+
+        useEffect(() => {
+            axios.get<Activity[]>("https://localhost:7026/api/activities")
+            .then(response => setActivities(response.data))
+            return () => { }
+        }, []);
+
+        const handleSelectActivity = (id: string) => {
+            setSelectedActivity(activities.find(act => act.id === id))
+        }
+
+        const handleCancelSelectActivity = () => {
+            setSelectedActivity(undefined);
+        }
+
+        const handleOpenForm = (id?: string) => {
+            if (id) {
+            handleSelectActivity(id);
+            }
+
+            else {
+            handleCancelSelectActivity();
+            }
+
+            setEditMode(true);
+        }
+
+        const handleCloseForm = () => {
+            setEditMode(false);
+        }
+
+        const handleSubmitForm = (activity: Activity) => {
+            if (activity.id) {
+            setActivities(activities.map(newActivity => newActivity.id === activity.id ? activity : newActivity));
+            }
+            else {
+            const newActivity = { ...activity, id: activities.length.toString() };
+            setSelectedActivity(newActivity);
+            setActivities([...activities, { ...newActivity }])
+            }
+
+            setEditMode(false);
+        }
+
+        const handleDelete = (id: string) => {
+            setActivities(activities.filter(activity => activity.id !== id))
+        }
+
+        return (
+            <Box sx={{
+            bgcolor: '#dddddd'
+            }}>
+            <CssBaseline />
+            <NavBar openForm={handleOpenForm} />
+            <Container maxWidth='xl' sx={{
+                mt: 3
+            }}>
+                <ActivityDashboard
+                activities={activities}
+                selectActivity={handleSelectActivity}
+                selectedActivity={selectedActivity}
+                cancelSelectActivity={handleCancelSelectActivity}
+                editMode={editMode}
+                openForm={handleOpenForm}
+                closeForm={handleCloseForm}
+                submitForm={handleSubmitForm}
+                deleteActivity={handleDelete} />
+            </Container>
+            </Box>
+        );
+        }
+
+        export default App
+
+*.Summary
+    By the end of this setup, your React application will have:
+    A clean and scalable folder structure
+    Reusable, well-defined components
+    TypeScript interfaces for type safety
+    Fully functioning CRUD operations
+    Clear separation of layout, feature, and UI logic
