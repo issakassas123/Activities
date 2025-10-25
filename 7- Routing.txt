@@ -1,0 +1,213 @@
+*. Learning Goals
+    *. Understand why routing is essential in Single Page Applications (SPAs)
+    *. Learn about React Router hooks
+    *. Configure browser routes for navigation
+    *. Implement dynamic routing and navigation links
+    *. Manage activity detail views and form routes
+
+*. Why Do We Need a Router?
+    *. SPAs (Single Page Applications) only have one main HTML file (index.html).
+    *. Without a router, every view or “page” would need to be handled manually with conditionals.
+    *. As applications grow, this approach becomes unmanageable.
+    *. A router allows for clean, declarative navigation between components without reloading the page.
+    *. React Router is the most popular choice for React applications.
+
+*. React-Router Hoks
+    React Router provides several hooks to work with navigation and parameters:
+    Hook	                Description
+    useNavigate()	        Navigate programmatically to a new route
+    useParams()	            Access route parameters (e.g., /activities/:id)
+    useSearchParams()	    Read and modify query string parameters
+    useLocation()	        Get the current route information (pathname, search, state)
+
+    *. For full documentation, visit:
+    🔗 https://reactrouter.com
+
+*. Setting Up Routes
+    *. Folder Setup
+        *. Inside your src/app directory, create a folder named router and add a file called Routes.tsx.
+        File: src/app/router/Routes.tsx
+            import { createBrowserRouter } from 'react-router'
+            import App from '../layout/App'
+            import HomePage from '../../features/home/HomePage'
+            import ActivityDashboard from '../../features/activities/dashboard/ActivityDashboard'
+            import ActivityForm from '../../features/activities/form/ActivityForm'
+            import ActivityDetail from '../../features/activities/details/ActivityDetail'
+
+            export const router = createBrowserRouter([
+                {
+                    path: '/',
+                    element: <App />,
+                    children: [
+                        {
+                            path: '',
+                            element: <HomePage />
+                        },
+                        {
+                            path: 'activities',
+                            element: <ActivityDashboard />
+                        },
+                        {
+                            path: 'activities/:id',
+                            element: <ActivityDetail />
+                        },
+                        {
+                            path: 'createActivity',
+                            element: <ActivityForm key='create' />
+                        },
+                        {
+                            path: 'manage/:id',
+                            element: <ActivityForm />
+                        },
+                    ]
+                }
+            ])
+
+*. Update main.tsx to Use Routes
+    Add the router to your app’s entry point.
+    File: src/main.tsx
+        import { StrictMode } from 'react'
+        import { createRoot } from 'react-dom/client'
+        import './app/layout/styles.css'
+        import '@fontsource/roboto/300.css';
+        import '@fontsource/roboto/400.css';
+        import '@fontsource/roboto/500.css';
+        import '@fontsource/roboto/700.css';
+        import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+        import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+        import { RouterProvider } from 'react-router';
+        import { router } from './app/router/Routes';
+
+        const queryClient = new QueryClient();
+
+        createRoot(document.getElementById('root')!).render(
+        <StrictMode>
+            <QueryClientProvider client={queryClient}>
+            <ReactQueryDevtools />
+            <RouterProvider router={router} />
+            </QueryClientProvider>
+        </StrictMode>,
+        )
+
+*. Cleaning Up Components
+    With React Router managing navigation, 
+    most props-based component passing (like manually sending activity data or handlers) can be simplified.
+    Use the <Outlet /> component in App.tsx to display the active route’s component.
+    File: src/app/layout/App.tsx
+        import { Outlet } from 'react-router';
+
+        function App() {
+            return (
+                <>
+                    <Navbar />
+                    <Outlet />
+                </>
+            );
+        }
+
+        export default App;
+
+
+*. Adding Navigation Links
+    Use NavLink to create navigation items with automatic “active” state handling.
+        import { MenuItem } from '@mui/material';
+        import { NavLink } from 'react-router';
+
+        <MenuItem
+        component={NavLink}
+        to='/activities'
+        sx={{
+            fontSize: '1.2rem',
+            textTransform: 'uppercase',
+            fontWeight: 'bold',
+        }}
+        >
+        Activities
+        </MenuItem>
+
+    *. Creating a Reusable MenuItemLink Component
+        To maintain consistency, create a reusable link component.
+        File: src/app/shared/components/MenuItemLink.tsx
+            import { MenuItem } from '@mui/material';
+            import { type ReactNode } from 'react';
+            import { NavLink } from 'react-router';
+
+            type Props = {
+            children: ReactNode;
+            to: string;
+            };
+
+            export default function MenuItemLink({ children, to }: Props) {
+                return (
+                    <MenuItem
+                    component={NavLink}
+                    to={to}
+                    sx={{
+                        fontSize: '1.2rem',
+                        textTransform: 'uppercase',
+                        fontWeight: 'bold',
+                        color: 'inherit',
+                        '&.active': {
+                        color: 'yellow',
+                        },
+                    }}
+                    >
+                    {children}
+                    </MenuItem>
+                );
+            }
+
+*. Routing to Activity Details
+    You can use a Link component to navigate to an individual activity.
+    import { Button, Link } from '@mui/material';
+    <Button component={Link} to={`/activities/${activity.id}`} color="primary">Edit</Button>
+
+*. Fetching an Individual Activity
+    *. Using useNavigate()
+        const navigate = useNavigate();
+        <Button color='inherit' onClick={() => navigate(`/activities/${id}`)}>Cancel</Button>
+    *. Using useParams()
+        const { id } = useParams();
+        const { createActivity, updateActivity, activity, isLoadingActivity } = useActivities(id);
+
+*. Adding an Edit Activity Route
+    To enable editing an activity, add a route with a parameterized path:
+    Routes.tsx: 
+    {
+        path: 'manage/:id',
+        element: <ActivityForm />
+    },
+
+*. Using Route Keys
+    Using unique keys helps React reset component state when switching between routes (e.g., clearing form inputs).
+    {
+        path: 'createActivity',
+        element: <ActivityForm key='create' />
+    },
+
+*. Concept Diagram
+    Browser
+    │
+    ▼
+    React Router (RouterProvider)
+    │
+    ├── '/' → HomePage
+    ├── '/activities' → ActivityDashboard
+    ├── '/activities/:id' → ActivityDetails
+    ├── '/createActivity' → ActivityForm (new)
+    └── '/manage/:id' → ActivityForm (edit)
+            │
+            ▼
+    Axios + React Query
+    │
+    ▼
+    ASP.NET Core API (Backend)
+
+*. Summary
+    *. React Router allows seamless navigation in your SPA.
+    *. Use <Outlet /> for nested routes within layouts.
+    *. Hooks like useNavigate() and useParams() provide dynamic control over routing.
+    *. Use keys in routes to manage component remounts (e.g., resetting forms).
+    *. Keep routing logic centralized in Routes.tsx for maintainability and clarity.
+    *. With this setup, your React app is now fully structured for navigation between 
+    the home page, activities dashboard, detail views, and CRUD forms — all powered by React Router.
