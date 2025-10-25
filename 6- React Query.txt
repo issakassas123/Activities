@@ -1,0 +1,493 @@
+Learning Goals
+    *. Configure React Query (TanStack Query)
+    *. Use custom hooks for reusable logic
+    *. Implement Axios interceptors
+    *. Connect all API requests to the backend
+
+*. Introduction to TanStack Query
+    TanStack Query (formerly React Query) is a powerful library for data fetching and state management in React. 
+    It simplifies handling server state with features like:
+        *. Data fetching and state management
+        *. Background refetching for stale data
+        *. Automatic synchronization with the server
+        *. Significantly less boilerplate than using useState and useEffect
+
+*. Setting Up React Query
+    For official setup instructions, visit:
+🔗 TanStack Query Documentation
+    https://tanstack.com/query/latest/docs/framework/react/overview
+
+    *. Step 1: Install React Query
+        Run the following command in your project root:
+        npm i @tanstack/react-query
+
+    *. Step 2: Folder Structure:
+        *. Inside your src/lib directory, create the following structure:
+            src
+            │
+            └── lib
+                ├── api
+                │   └── agent.ts
+                └── hooks
+                    └── useActivities.ts
+
+    *. Step 3: Using useQuery in App.tsx
+        Import the useQuery hook from TanStack Query and use it to fetch your activities from the API.
+        import {useQuery} from "@tanstack/react-query";
+        const { data: activities, isPending } = useQuery({
+            queryKey: ['activities'],
+            queryFn: async () => {
+                const response = await agent.get<Activity[]>("https://localhost:7026/api/activities");
+                return response.data;
+            }
+        });
+
+        *. This automatically handles:
+            Data fetching
+            Caching
+            Error and loading states
+            Background refetching
+
+    *. Step 4: React Query Developer Tools
+        To visualize and debug queries, install the React Query DevTools:
+        npm i @tanstack/react-query-devtools
+        Then wrap your app’s QueryClientProvider with ReactQueryDevtools:
+        import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
+*. Creating Custom Hooks
+    This hook encapsulates all logic related to fetching activities.
+    File: useActivities.ts
+    This promotes code reusability and keeps your components clean.
+
+    *. Creating a Base Axios Instance
+        Use Axios to define a centralized instance for all API requests.
+        File: agent.ts
+        This setup allows you to:
+            Define a global base URL
+            Handle authentication tokens
+            Manage request/response interceptors
+
+    *. Environment Configuration
+        Create an environment configuration file at the root of your project:
+        .env.environment
+
+*. React Query Mutations
+    *. Use mutations to modify data (create, update, or delete activities).
+    *. Setting the selected activity from React query
+
+*. Concept Diagram
+    React Components
+        │
+        ▼
+    Custom Hooks (useActivities)
+        │
+        ▼
+    TanStack Query (QueryClient)
+        │
+        ▼
+    Axios Agent (agent.ts)
+        │
+        ▼
+    Backend API (ASP.NET Core)
+
+    *. main.tsx
+        *. By using QueryClient and QueryClientProvider
+        import { StrictMode } from 'react'
+        import { createRoot } from 'react-dom/client'
+        import './app/layout/styles.css'
+        import '@fontsource/roboto/300.css';
+        import '@fontsource/roboto/400.css';
+        import '@fontsource/roboto/500.css';
+        import '@fontsource/roboto/700.css';
+        import App from './app/layout/App';
+        import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+        import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
+        const queryClient = new QueryClient();
+
+        createRoot(document.getElementById('root')!).render(
+        <StrictMode>
+            <QueryClientProvider client={queryClient}>
+            <ReactQueryDevtools />
+            <App />
+            </QueryClientProvider>
+        </StrictMode>,
+        )
+
+    *. .env.environment
+        VITE_API_URL=https://localhost:7026/api
+
+    *. agent.ts
+        import axios from "axios";
+
+        const sleep = (delay: number) => {
+            return new Promise(resolve => {
+                setTimeout(resolve, delay);
+            });
+        };
+
+        const agent = axios.create({
+            baseURL: import.meta.env.VITE_API_URL
+        });
+
+        agent.interceptors.response.use(async response => {
+            try {
+                await sleep(250);
+                return response;
+            }
+            catch (error) {
+                console.log(error);
+                return Promise.reject(error);
+            }
+        });
+
+        export default agent
+
+    *. useActivities.ts
+        import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+        import agent from "../api/agent";
+
+        export const useActivities = () => {
+            const queryClient = useQueryClient();
+            const { data: activities, isPending } = useQuery({
+                queryKey: ['activities'],
+                queryFn: async () => {
+                    const response = await agent.get<Activity[]>("/activities");
+                    return response.data;
+                }
+            });
+
+            const createActivity = useMutation({
+                mutationFn: async (activity: Activity) => {
+                    await agent.post('/activities', activity);
+                },
+                onSuccess: async () => {
+                    await queryClient.invalidateQueries({
+                        queryKey: ['activities']
+                    });
+                }
+            });
+
+            const updateActivity = useMutation({
+                mutationFn: async (activity: Activity) => {
+                    await agent.put('/activities', activity);
+                },
+                onSuccess: async () => {
+                    await queryClient.invalidateQueries({
+                        queryKey: ['activities']
+                    });
+                }
+            });
+
+            const deleteActivity = useMutation({
+                mutationFn: async (id: string) => {
+                    await agent.delete(`/activities/${id}`);
+                },
+                onSuccess: async () => {
+                    await queryClient.invalidateQueries({
+                        queryKey: ['activities']
+                    });
+                }
+            });
+
+            return {
+                activities,
+                isPending,
+                createActivity,
+                updateActivity,
+                deleteActivity
+            }
+        }
+
+    *. App.tsx
+        import { Box, Container, CssBaseline, Typography } from "@mui/material";
+        import { useState } from "react";
+        import NavBar from "./NavBar";
+        import ActivityDashboard from "../../features/activities/dashboard/ActivityDashboard";
+        import { useActivities } from "../../lib/hooks/useActivities";
+
+        function App() {
+        const [selectedActivity, setSelectedActivity] = useState<Activity | undefined>(undefined);
+        const [editMode, setEditMode] = useState(false);
+        const { activities, isPending } = useActivities();
+
+        const handleSelectActivity = (id: string) => {
+            setSelectedActivity(activities!.find(act => act.id === id))
+        }
+
+        const handleCancelSelectActivity = () => {
+            setSelectedActivity(undefined);
+        }
+
+        const handleOpenForm = (id?: string) => {
+            if (id) {
+            handleSelectActivity(id);
+            }
+
+            else {
+            handleCancelSelectActivity();
+            }
+
+            setEditMode(true);
+        }
+
+        const handleCloseForm = () => {
+            setEditMode(false);
+        }
+
+        return (
+            <Box sx={{
+            bgcolor: '#dddddd',
+            minHeight: '100vh'
+            }}>
+            <CssBaseline />
+            <NavBar openForm={handleOpenForm} />
+            <Container maxWidth='xl' sx={{
+                mt: 3
+            }}>
+                {
+                !activities || isPending ? (
+                    <Typography>Loading... </Typography>
+                ) : (
+                    <ActivityDashboard
+                    activities={activities}
+                    selectActivity={handleSelectActivity}
+                    selectedActivity={selectedActivity}
+                    cancelSelectActivity={handleCancelSelectActivity}
+                    editMode={editMode}
+                    openForm={handleOpenForm}
+                    closeForm={handleCloseForm} />
+                )}
+            </Container>
+            </Box>
+        );
+        }
+
+        export default App
+
+    *. ActivityForm.tsx
+        import { Box, Button, Paper, TextField, Typography } from '@mui/material'
+        import type { FormEvent } from 'react';
+        import { useActivities } from '../../../lib/hooks/useActivities';
+
+        type Props = {
+            closeForm: () => void;
+            activity?: Activity;
+        }
+
+        export default function ActivityForm({ closeForm, activity }: Props) {
+            const { createActivity, updateActivity } = useActivities();
+            
+            const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+                event.preventDefault();
+
+                const formData = new FormData(event.currentTarget);
+                const data: { [key: string]: FormDataEntryValue } = {};
+                formData.forEach((value, key) => {
+                    data[key] = value;
+                });
+
+                if (activity) {
+                    data.id = activity.id
+                    await updateActivity.mutateAsync(data as unknown as Activity);
+                    closeForm();
+                }
+                else
+                {
+                    await createActivity.mutateAsync(data as unknown as Activity);
+                    closeForm();
+                }
+            };
+
+            return (
+                <Paper sx={{
+                    borderRadius: 3,
+                    padding: 3
+                }}>
+                    <Typography variant='h5' gutterBottom color='primary'>Create Activity</Typography>
+                    <Box component='form' onSubmit={handleSubmit} display='flex' flexDirection='column' gap={3}>
+                        <TextField name='title' label='Title' defaultValue={activity?.title}></TextField>
+                        <TextField name='description' label='Description' multiline rows={3} defaultValue={activity?.description}></TextField>
+                        <TextField name='category' label='Category' defaultValue={activity?.category}></TextField>
+                        <TextField name='date' label='Date' type='date' 
+                        defaultValue={activity?.date ? new Date(activity.date).toISOString().split('T')[0] 
+                        : new Date().toISOString().split('T')[0]}></TextField>
+                        <TextField name='city' label='City' defaultValue={activity?.city}></TextField>
+                        <TextField name='venue' label='Venue' defaultValue={activity?.venue}></TextField>
+                        <Box display='flex' justifyContent='end' gap={3}>
+                            <Button color='inherit' onClick={closeForm}>Cancel</Button>
+                            <Button
+                                color='success'
+                                variant='contained'
+                                type='submit'
+                                disabled={updateActivity.isPending || createActivity.isPending}      
+                            >Submit</Button>
+                        </Box>
+                    </Box>
+                </Paper>
+            )
+        }
+
+    *. ActivityDashboard.tsx
+        import { Grid } from "@mui/material";
+        import ActivityList from "./ActivityList";
+        import ActivityDetail from "../details/ActivityDetail";
+        import ActivityForm from "../form/ActivityForm";
+
+        type Props = {
+        activities: Activity[];
+        selectActivity: (id: string) => void;
+        selectedActivity?: Activity;
+        cancelSelectActivity: () => void;
+        openForm: (id: string) => void;
+        closeForm: () => void;
+        editMode: boolean;
+        }
+
+        export default function ActivityDashboard({
+        activities,
+        selectedActivity,
+        editMode,
+        selectActivity,
+        cancelSelectActivity,
+        openForm,
+        closeForm
+        }: Props) {
+        return (
+            <Grid container spacing={3}>
+            <Grid size={7}>
+                <ActivityList
+                activities={activities}
+                selectActivity={selectActivity} />
+            </Grid>
+            <Grid size={5}>
+                {
+                selectedActivity && !editMode &&
+                <ActivityDetail
+                    selectedActivity={selectedActivity}
+                    cancelSelectActivity={cancelSelectActivity}
+                    openForm={openForm} />
+                }
+
+                {
+                editMode && <ActivityForm
+                    closeForm={closeForm}
+                    activity={selectedActivity} />
+                }
+            </Grid>
+            </Grid>
+        );
+        }
+
+    *. ActivityList.tsx
+        import { Box } from '@mui/material'
+        import ActivityCard from './ActivityCard'
+
+        type Props = {
+            activities: Activity[];
+            selectActivity: (id: string) => void;
+        }
+
+        export default function ActivitList({ activities, selectActivity }: Props) {
+            return (
+                <Box sx={{
+                    display: 'flex', flexDirection: 'column', gap: 3
+                }}>
+                    {activities.map(activity => (
+                        <ActivityCard
+                            activity={activity}
+                            selectActivity={selectActivity}
+                            key={activity.id} />
+                    ))}
+                </Box>
+            )
+        }
+
+    *. ActivityCard.tsx
+        import { Box, Button, Card, CardActions, CardContent, Chip, Typography } from "@mui/material"
+        import { useActivities } from "../../../lib/hooks/useActivities";
+
+        type Props = {
+            activity: Activity;
+            selectActivity: (id: string) => void;
+        }
+
+        export default function ActivityCard({ activity, selectActivity }: Props) {
+            const { deleteActivity } = useActivities();
+            
+            return (
+                <Card sx={{
+                    borderRadius: 3
+                }}>
+                    <CardContent>
+                        <Typography variant="h5">{activity.title}</Typography>
+                        <Typography sx={{
+                            color: 'text.secondary'
+                        }}>{activity.date}</Typography>
+                        <Typography variant="body2">{activity.description}</Typography>
+                        <Typography variant="subtitle1">{activity.city} / {activity.venue}</Typography>
+                    </CardContent>
+                    <CardActions sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        pb: 2
+                    }}>
+                        <Chip label={activity.category} variant="outlined"></Chip>
+                        <Box display='flex' gap={2}>
+                            <Button onClick={() => selectActivity(activity.id)} size="medium" variant="contained">View</Button>
+                            <Button
+                                onClick={() => deleteActivity.mutate(activity.id)}
+                                disabled={ deleteActivity.isPending }
+                                size="medium"
+                                color="error"
+                                variant="contained">Delete</Button>
+                        </Box>
+                    </CardActions>
+                </Card>
+            )
+        }
+
+    *. ActivityDetail.tsx
+        import { Button, Card, CardActions, CardContent, CardMedia, Typography } from "@mui/material"
+        import { useActivities } from "../../../lib/hooks/useActivities";
+
+        type Props = {
+            selectedActivity: Activity;
+            cancelSelectActivity: () => void;
+            openForm: (id: string) => void;
+        }
+
+        export default function ActivityDetail({ selectedActivity, cancelSelectActivity, openForm }: Props) {
+            const { activities } = useActivities();
+            const activity = activities?.find(act => act.id === selectedActivity.id)
+            if (!activity) {
+                return (<Typography>Loading...</Typography>)
+            }
+
+            return (
+                <Card sx={{
+                    borderRadius: 3
+                }}>
+                    <CardMedia component='img' src={
+                        `/images/categoryImages/${activity.category}.jpg`
+                    } />
+
+                    <CardContent>
+                        <Typography variant="h5">{activity.title}</Typography>
+                        <Typography variant="subtitle1" fontWeight='light'>{activity.date}</Typography>
+                        <Typography variant="body1">{activity.description}</Typography>
+                    </CardContent>
+                    <CardActions>
+                        <Button color="primary" onClick={() => openForm(activity.id)}>Edit</Button>
+                        <Button color="inherit" onClick={cancelSelectActivity}>Cancel</Button>
+                    </CardActions>
+                </Card>
+            )
+        }
+
+*. Summary
+    With TanStack Query and Axios:
+        *. Your data fetching becomes cleaner and more efficient
+        *. Caching and refetching are automatically managed
+        *. API requests are centralized and configurable
+        *. Your React app gains better performance and simpler state management
