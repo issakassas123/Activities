@@ -1,0 +1,648 @@
+*. React Activities App — UI and Styling
+*. Learning Goals
+    *. Enhance and refine the user interface (UI)
+    *. Apply Material UI (MUI) components for consistent design and responsiveness
+
+*. Styling the Activity Card
+    This component is responsible for rendering an individual activity card on the dashboard.
+    Features:
+        *. Displays key activity details such as title, date, venue, and description.
+        *. Uses Material UI’s Card, Avatar, Typography, and Button components for layout and styling.
+        *. Includes conditional chips to display the hosting or attendance status.
+        *. Provides a link to view full activity details.
+
+    Key Dependencies:
+        *. @mui/material for UI components
+        *. @mui/icons-material for icons (AccessTime, Place)
+        *. react-router for navigation links
+        *. formatDate utility for date formatting
+
+    Best Practices:
+        *. Maintain consistent sx styling for spacing and typography.
+        *. Use semantic and accessible components like Typography for text and Button for actions.
+        *. Avoid deprecated props such as titleTypographyProps; instead, wrap content with Typography.
+
+*. Styling the Activity Details Component
+    *. Directory Structure:
+        Create a details folder inside features/activities and include the following files:
+            features/
+                activities/
+                    details/
+                        ActivityDetailsPage.tsx
+                        ActivityDetailsHeader.tsx
+                        ActivityDetailsInfo.tsx
+                        ActivityDetailsChat.tsx
+                        ActivityDetailsSidebar.tsx
+
+    Notes:
+        *. Rename the previous ActivityDetail.tsx to ActivityDetailsPage.tsx.
+        *. Divide responsibilities among smaller components for clarity and maintainability:
+        *. Header: Display title and host information.
+        *. Info: Show detailed information about the activity.
+        *. Chat: Manage user comments or discussions.
+        *. : List participants and related actions.
+
+*. Styling the Activity Dashboard Component
+    *. New Component: ActivityFilters.tsx
+        *. Create this file inside the dashboard directory.
+        *. Implement filtering options to sort or categorize activities.
+        *. To include a date selector, install and integrate the React Calendar package:
+            npm install react-calendar
+
+    Usage Tip: Wrap the calendar in a MUI Paper or Box for consistent styling with other components.
+
+*. Updating Navigation Logic in App.tsx
+    *. Use the useLocation hook from React Router to conditionally hide navigation when on the homepage.
+        import { useLocation } from 'react-router';
+
+        const location = useLocation();
+        const hideNav = location.pathname === '/';
+
+*. Formatting Dates with date-fns
+    *. Documentation:
+        https://date-fns.org
+    *. Installation:
+        npm install date-fns
+    *. Setup:
+        Create a utility directory and file:
+            lib/
+                util/
+                    util.ts
+    Best Practice:
+        Always format dates through a single utility function to maintain consistency across all components.
+
+*. ActivityCard.tsx
+    import { AccessTime, Place } from "@mui/icons-material";
+    import { Avatar, Box, Button, Card, CardContent, CardHeader, Chip, Divider, Typography } from "@mui/material"
+    import { Link } from "react-router";
+    import { formatDate } from "../../../lib/util/util";
+
+    type Props = {
+        activity: Activity;
+    }
+
+    export default function ActivityCard({ activity }: Props) {
+        const isHost = false;
+        const isGoing = false;
+        const label = isHost ? "You are hosting" : "You are going"
+        const isCancelled = false;
+        const color = isHost ? 'secondary' : isGoing ? 'warning' : 'default';
+
+        return (
+            <Card
+                elevation={3}
+                sx={{ borderRadius: 3 }}
+            >
+                <Box
+                    display='flex'
+                    alignItems='center'
+                    justifyContent='space-between'
+                >
+                    <CardHeader
+                        avatar={<Avatar sx={{
+                            width: 80,
+                            height: 80
+                        }} />}
+                        title={
+                            <Typography variant="h6" sx={{ fontSize: 20, fontWeight: 'bold' }}>
+                                {activity.title}
+                            </Typography>
+                        }
+                        subheader={
+                            <>
+                                Hosted by {''} <Link to={`/profiles`}></Link>
+                            </>
+                        }
+                    />
+                    <Box
+                        display='flex'
+                        flexDirection='column'
+                        gap={2}
+                        mr={2}
+                    >
+                        {(isHost || isGoing) &&
+                            <Chip
+                                label={label}
+                                color={color}
+                                sx={{ borderRadius: 2 }}
+                            />
+                        }
+                        {isCancelled &&
+                            <Chip
+                                label='cancelled'
+                                color="error"
+                                sx={{ borderRadius: 2 }}
+                            />
+                        }
+                    </Box>
+                </Box>
+                <Divider sx={{ mb: 3 }} />
+
+                <CardContent sx={{ p: 0 }}>
+                    <Box
+                        display='flex'
+                        alignItems='center'
+                        mb={2}
+                        px={2}
+                    >
+                        <Box display='flex' flexGrow={0} alignItems='center'>
+                            <AccessTime sx={{ mr: 1 }} />
+                            <Typography variant="body2" noWrap>
+                                {formatDate(activity.date)}
+                            </Typography>
+                        </Box>
+                        <Place sx={{
+                            ml: 3,
+                            mr: 2
+                        }} />
+                        <Typography variant="body2">
+                            {activity.venue}
+                            </Typography>
+                    </Box>
+                    <Divider />
+                    <Box
+                        display='flex'
+                        gap={2}
+                        sx={{
+                            backgroundColor: 'grey.200',
+                            py: 3,
+                            pl: 3
+                        }}
+                    >
+                        Attendees go here
+                    </Box>
+                </CardContent>
+
+                <CardContent sx={{ pb: 2 }}>
+                    <Typography variant="body2">{activity.description}</Typography>
+                    <Button
+                        component={Link}
+                        to={`/activities/${activity.id}`}
+                        size="medium"
+                        variant="contained"
+                        sx={{
+                            display: 'flex',
+                            justifySelf: 'self-end',
+                            borderRadius: 3
+                        }}
+                    >
+                        View
+                    </Button>
+                </CardContent>
+            </Card>
+        )
+    }
+
+*. ActivityDetailsPage.tsx
+    import { Grid, Typography } from "@mui/material"
+    import { useParams } from "react-router";
+    import { useActivities } from "../../../lib/hooks/useActivities";
+    import ActivityDetailHeader from "./ActivityDetailsHeader";
+    import ActivityDetailInfo from "./ActivityDetailsInfo";
+    import ActivityDetailChat from "./ActivityDetailsChat";
+    import ActivityDetailSidebar from "./ActivityDetailsSidebar";
+
+    export default function ActivityDetailPage() {
+        const { id } = useParams();
+        const { activity, isLoadingActivity } = useActivities(id);
+
+        if (isLoadingActivity) {
+            return <Typography>Loading...</Typography>
+        }
+
+        if (!activity) {
+            return <Typography>Activity not found</Typography>
+        }
+
+        return (
+            <Grid
+                container
+                spacing={3}
+            >
+                <Grid size={8}>
+                    <ActivityDetailHeader activity={activity} />
+                    <ActivityDetailInfo activity={activity} />
+                    <ActivityDetailChat />
+                </Grid>
+                <Grid size={4}
+                >
+                    <ActivityDetailSidebar />
+                </Grid>
+            </Grid>
+        )
+    }
+
+*. ActivityDetailHeader.tsx
+    import { Card, Badge, CardMedia, Box, Typography, Button } from "@mui/material";
+    import { Link } from "react-router";
+    import { formatDate } from "../../../lib/util/util";
+
+    type Props = {
+        activity: Activity
+    }
+
+    export default function ActivityDetailsHeader({ activity }: Props) {
+        const isCancelled = false;
+        const isHost = true;
+        const isGoing = true;
+        const loading = false;
+
+        return (
+            <Card sx={{
+                position: 'relative',
+                mb: 2,
+                backgroundColor: 'transparent',
+                overflow: 'hidden'
+            }}>
+                {isCancelled && (
+                    <Badge
+                    sx={{
+                        position: 'absolute', left: 40, top: 20, zIndex: 1000
+                    }}
+                    color="error"
+                    badgeContent="Cancelled"
+                    />
+                )}
+                <CardMedia
+                    component="img"
+                    height="300"
+                    image={`/images/categoryImages/${activity.category}.jpg`}
+                    alt={`${activity.category} image`}
+                />
+                <Box sx={{
+                    position: 'absolute',
+                    bottom: 0,
+                    width: '100%',
+                    color: 'white',
+                    padding: 2,
+                    display: 'flex',
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-end',
+                    background: 'linear-gradient(to top, rgba(0, 0, 0, 1.0), transparent)',
+                    boxSizing: 'border-box',
+                }}>
+                    {/* Text Section */}
+                    <Box>
+                    <Typography
+                        variant="h4"
+                        sx={{ fontWeight: 'bold' }}
+                    >
+                        {activity.title}
+                    </Typography>
+                    <Typography variant="subtitle1">
+                        {formatDate(activity.date)}
+                    </Typography>
+                    </Typography>
+                    <Typography variant="subtitle2">
+                        Hosted by <Link to={`/profiles/username`}
+                        style={{ color: 'white', fontWeight: 'bold' }}>Bob</Link>
+                    </Typography>
+                    </Box>
+
+                    {/* Buttons aligned to the right */}
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                    {isHost ? (
+                        <>
+                        <Button
+                            variant='contained'
+                            color={isCancelled ? 'success' : 'error'}
+                            onClick={() => { }}
+                        >
+                            {isCancelled ? 'Re-activate Activity' : 'Cancel Activity'}
+                        </Button>
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            component={Link}
+                            to={`/manage/${activity.id}`}
+                            disabled={isCancelled}
+                        >
+                            Manage Event
+                        </Button>
+                        </>
+                    ) : (
+                        <Button
+                        variant="contained"
+                        color={isGoing ? 'primary' : 'info'}
+                        onClick={() => { }}
+                        disabled={isCancelled || loading}
+                        >
+                        {isGoing ? 'Cancel Attendance' : 'Join Activity'}
+                        </Button>
+                    )}
+                    </Box>
+                </Box>
+            </Card>
+        )
+    }
+
+*. ActivityDetailsChat.tsx
+    import { Box, Typography, Card, CardContent, TextField, Avatar } from "@mui/material";
+    import { Link } from "react-router";
+
+    export default function ActivityDetailsChat() {
+        return (
+            <>
+                <Box
+                    sx={{
+                        textAlign: 'center',
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        padding: 2
+                    }}
+                >
+                    <Typography variant="h6">Chat about this event</Typography>
+                </Box>
+                <Card>
+                    <CardContent>
+                        <div>
+                            <form>
+                                <TextField
+                                    variant="outlined"
+                                    fullWidth
+                                    multiline
+                                    rows={2}
+                                    placeholder="Enter your comment (Enter to submit, SHIFT + Enter for new line)"
+                                />
+                            </form>
+                        </div>
+
+                        <Box>
+                            <Box sx={{ display: 'flex', my: 2 }}>
+                                <Avatar src={'/images/user.png'} alt={'user image'} sx={{ mr: 2 }} />
+                                <Box display='flex' flexDirection='column'>
+                                    <Box display='flex' alignItems='center' gap={3}>
+                                        <Typography component={Link} to={`/profiles/username`} variant="subtitle1" sx={{ fontWeight: 'bold', textDecoration: 'none' }}>
+                                            Bob
+                                        </Typography>
+                                        <Typography variant="body2" color="textSecondary">
+                                            2 hours ago
+                                        </Typography>
+                                    </Box>
+
+                                    <Typography sx={{ whiteSpace: 'pre-wrap' }}>Comment goes here</Typography>
+                                </Box>
+                            </Box>
+                        </Box>
+                    </CardContent>
+                </Card>
+            </>
+        )
+    }
+
+*. ActivityDetailsSidebar.tsx
+    import { Paper, Typography, List, ListItem, Chip, ListItemAvatar, Avatar, ListItemText, Grid } from "@mui/material";
+
+    export default function ActivityDetailsSidebar() {
+        const following = true;
+        const isHost = true;
+
+        return (
+            <>
+                <Paper sx={{
+                    textAlign: 'center',
+                    border: 'none',
+                    backgroundColor: 'primary.main',
+                    color: 'white',
+                    p: 2,
+                }}>
+                    <Typography variant="h6">
+                        2 people going
+                    </Typography>
+                </Paper>
+                <Paper sx={{ padding: 2 }}>
+                    <Grid container alignItems="center">
+                        <Grid size={8}>
+                            <List sx={{ display: 'flex', flexDirection: 'column' }}>
+                                <ListItem>
+                                    <ListItemAvatar>
+                                        <Avatar
+                                            alt={'attendee name'}
+                                            src={'/assets/user.png'}
+                                        />
+                                    </ListItemAvatar>
+                                    <ListItemText>
+                                        <Typography variant="h6">Bob</Typography>
+                                    </ListItemText>
+                                </ListItem>
+                            </List>
+                        </Grid>
+                        <Grid size={4} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                            {isHost && (
+                                <Chip
+                                    label="Host"
+                                    color="warning"
+                                    variant='filled'
+                                    sx={{ borderRadius: 2 }}
+                                />
+                            )}
+                            {following && (
+                                <Typography variant="body2" color="orange">
+                                    Following
+                                </Typography>
+                            )}
+                        </Grid>
+                    </Grid>
+                </Paper>
+            </>
+        );
+    }
+
+*. ActivityDetailsInfo.tsx
+    import { CalendarToday, Info, Place } from "@mui/icons-material";
+    import { Divider, Grid, Paper, Typography } from "@mui/material";
+    import { formatDate } from "../../../lib/util/util";
+
+    type Props = {
+        activity: Activity
+    }
+
+    export default function ActivityDetailsInfo({ activity }: Props) {
+        return (
+            <Paper sx={{ mb: 2 }}>
+                <Grid container alignItems="center" pl={2} py={1}>
+                    <Grid size={1}>
+                        <Info color="info" fontSize="large" />
+                    </Grid>
+                    <Grid size={11}>
+                        <Typography>{activity.description}</Typography>
+                    </Grid>
+                </Grid>
+                <Divider />
+                <Grid container alignItems="center" pl={2} py={1}>
+                    <Grid size={1}>
+                        <CalendarToday color="info" fontSize="large" />
+                    </Grid>
+                    <Grid size={11}>
+                        <Typography variant="subtitle1">
+                            {formatDate(activity.date)}
+                        </Typography>
+                    </Grid>
+                </Grid>
+                <Divider />
+
+                <Grid container alignItems="center" pl={2} py={1}>
+                    <Grid size={1}>
+                        <Place color="info" fontSize="large" />
+                    </Grid>
+                    <Grid size={11}>
+                        <Typography>
+                            {activity.venue}, {activity.city}
+                        </Typography>
+                    </Grid>
+                </Grid>
+            </Paper>
+        )
+    }
+
+*. ActivityFilters.tsx
+    import { FilterList, Event } from '@mui/icons-material'
+    import { Box, ListItemText, MenuItem, MenuList, Paper, Typography } from '@mui/material'
+    import 'react-calendar/dist/Calendar.css'
+    import { Calendar } from 'react-calendar'
+
+    export default function ActivityFilters() {
+        return (
+            <Box sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 3,
+                borderRadius: 3
+            }}>
+                <Paper sx={{
+                    p: 3,
+                    borderRadius: 3
+                }}>
+                    <Box sx={{ width: '100%' }}>
+                        <Typography variant='h6' sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            mb: 1,
+                            color: 'primary.main'
+                        }}>
+                            <FilterList sx={{ mr: 1 }}>
+                                Filters
+                            </FilterList>
+                            <MenuList>
+                                <MenuItem>
+                                    <ListItemText primary="All events" />
+                                </MenuItem>
+                                <MenuItem>
+                                    <ListItemText primary="I'm going" />
+                                </MenuItem>
+                                <MenuItem>
+                                    <ListItemText primary="I'm hosting" />
+                                </MenuItem>
+                            </MenuList>
+                        </Typography>
+                    </Box>
+                </Paper>
+
+                <Box component={Paper} sx={{
+                    width: '100%',
+                    p: 3,
+                    borderRadius: 3
+                }}>
+                    <Typography variant='h6' sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        mb: 1,
+                        color: 'primary.main'
+                    }}>
+                        <Event sx={{ mr: 1 }} />
+                        Select Date
+                    </Typography>
+                    <Calendar />
+                </Box>
+            </Box>
+        )
+    }
+
+*. HomePage.tsx
+    import { Group } from '@mui/icons-material'
+    import { Box, Button, Paper, Typography } from '@mui/material'
+    import { Link } from 'react-router'
+
+    export default function HomePage() {
+        return (
+            <Paper sx={{
+                color:'white',
+                display:'flex',
+                flexDirection:'column',
+                gap:6,
+                alignItems:'center',
+                alignContent: 'center',
+                justifyContent:'center',
+                height:'100vh',
+                backgroundImage: 'linear-gradient(140deg, #182a73 5%, #218aae 65%, #20a7ac 85%)'
+            }}>
+                <Box sx={{
+                    display:'flex',
+                    alignItems:'center',
+                    alignContent:'center',
+                    color:'white',
+                    gap: 3
+                }}>
+                    <Group sx={{
+                        width: 110,
+                        height: 110
+                    }} />
+                    <Typography variant='h1'>
+                        Activities
+                    </Typography>
+                </Box>
+                <Typography variant='h2'>
+                    Welcome to Activities
+                </Typography>
+                <Button
+                    component={Link}
+                    to='/activities'
+                    size='large'
+                    variant='contained'
+                    sx={{
+                        height: 80,
+                        borderRadius: 4,
+                        fontSize: '1.5rem'
+                    }}
+                >
+                    Take me to the activities!
+                </Button>
+            </Paper>
+        )
+    }
+
+*. App.tsx
+    function App() {
+        const location = useLocation();
+
+        return (
+            <Box sx={{
+                bgcolor: '#eeeeee',
+                minHeight: '100vh'
+            }}>
+                <CssBaseline />
+                {location.pathname === '/' ? <HomePage /> : (
+                    <>
+                        <NavBar />
+                        <Container maxWidth='xl' sx={{ mt: 3 }}>
+                            <Outlet />
+                        </Container>
+                    </>
+                )}
+            </Box>
+        );
+    }
+
+*. util.ts
+    import { format, type DateArg } from "date-fns";
+
+    export function formatDate(date: DateArg<Date>)
+    {
+        return format(date, 'dd MMM yyyy h:mm a');
+    }
+
+*. Summary
+    This phase focuses on enhancing the user interface and experience of the Activities App.
+    By leveraging Material UI, modularizing components, and improving date handling, 
+    the app becomes more maintainable, readable, and visually appealing.
