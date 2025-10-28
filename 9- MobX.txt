@@ -1,0 +1,320 @@
+Client-Side State Management — MobX Integration Guide
+*. Learning Goals
+    *. Introduce client-side state management
+    *. Learn and apply MobX for state control
+    *. Integrate MobX React Lite for React bindings
+    *. Use React Context to provide stores across components
+
+*. Why MobX?
+    "Working with MobX is basically a continuous loop of thinking ‘this is way too simple,
+    it definitely won’t work’ — only to be proven wrong."
+    *. MobX offers simplicity and clarity compared to Redux.
+    *. State updates are automatic, reactive, and minimalistic — without complex reducers or boilerplate.
+    *. Large-scale applications built with MobX remain easy to reason about and maintain.
+
+*. MobX Core Concepts
+    Concept	                    Description
+    Observables	                State or data that can change over time and be observed by components.
+    Actions	                    Functions that modify observable state in a controlled way.
+    Computed Properties	        Derived values that automatically update when observables change.
+    Reactions	                Side effects triggered automatically when observables update.
+    AutoRun	                    Executes a function immediately and again whenever any observable value it depends on changes.
+
+*. Setting Up MobX
+    *. Official Documentation:
+        https://mobx.js.org
+    
+    *. Installation:
+        npm install mobx mobx-react-lite
+
+    *. Project Structure:
+        Create directories and files inside the lib and hooks folders:
+            lib/
+                stores/
+                    counterStore.ts
+                    store.ts
+                    uiStore.ts
+                hooks/
+                    useStore.ts
+
+    *. Store Overview
+        *. counterStore.ts — Handles counter state logic (observable values and increment/decrement actions).
+        *. uiStore.ts — Manages UI-related state such as loading indicators.
+        *. store.ts — Combines all individual stores into a single Store object and exports the context provider.
+        *. useStore.ts — Custom hook for consuming stores throughout React components.
+
+    *. Integrating MobX in main.tsx
+        Wrap the application in a MobX store context provider
+
+    *. Creating the Counter Feature
+        features/
+            counter/
+                Counter.tsx
+
+        Implementation:
+            Use the observer function from mobx-react-lite to automatically re-render components when observable state changes.
+
+    *. Actions:
+        increment() — Increase count by 1
+        decrement() — Decrease count by 1
+
+    *. Computed Properties and Events
+        *. Use computed properties to automatically calculate derived values.
+        *. Example: total event count or formatted state based on observable data.
+    
+    *. Adding Loading State
+        Steps:
+            *. Add a loading observable in uiStore.ts.
+            *. Modify agent.ts to interact with the uiStore for showing/hiding loading indicators.
+            *. Update Navbar.tsx to display loading feedback to the user.
+    
+    *. Optimizing the Create Activity Page
+        In the Create Activity Page, a loading state was triggering unnecessarily.
+        To fix this:
+            Update the logic inside useActivities.ts to avoid setting loading when no background work is being performed.
+
+*. counterStore.ts
+    import {action, makeObservable, observable} from 'mobx'
+
+    export default class CounterStore
+    {
+        title = "Counter store";
+        count = 42;
+
+        constructor()
+        {
+            makeObservable(this, {
+                title: observable,
+                count: observable,
+                increment: action,
+                decrement: action
+            });
+        }
+
+        // actions
+        increment = (amount = 1) => {
+            this.count += amount;
+        }
+
+        decrement = (amount = 1) => {
+            this.count -= amount
+        }
+    }
+
+*. store.ts
+    import { createContext } from "react";
+    import CounterStore from "./counterStore";
+    import { UiStore } from "./uiStore";
+
+    interface Store
+    {
+        counterStore: CounterStore,
+        uiStore: UiStore
+    }
+
+    export const store : Store = {
+        counterStore: new CounterStore(),
+        uiStore: new UiStore()
+    }
+
+    export const StoreContext = createContext(store);
+
+*. useStore.ts
+    import { useContext } from "react";
+    import { StoreContext } from "../stores/store";
+
+    export function useStore()
+    {
+        return useContext(StoreContext);
+    }
+
+*. main.tsx
+    createRoot(document.getElementById('root')!).render(
+        <StrictMode>
+            <StoreContext.Provider value={store}>
+            <QueryClientProvider client={queryClient}>
+            <ReactQueryDevtools />
+            <RouterProvider router={router} />
+            </QueryClientProvider>
+            </StoreContext.Provider>
+        </StrictMode>,
+    )
+
+*. Counter.tsx
+    import { Button, ButtonGroup, Typography } from "@mui/material";
+    import { useStore } from "../../lib/hooks/useStore"
+    import { Observer } from 'mobx-react-lite';
+
+    export default function Counter() {
+        const { counterStore } = useStore();
+
+        return (
+            <>
+                <Observer>
+                    {() => (
+                        <>
+                            <Typography variant='h4' gutterBottom>{counterStore.title}</Typography>
+                            <Typography variant="h6">The count is {counterStore.count}</Typography>
+                        </>
+                    )}
+                </Observer>
+                <ButtonGroup sx={{ mt: 3 }}>
+                    <Button variant="contained" color="error" onClick={() => counterStore.decrement()}>Decrement</Button>
+                    <Button variant="contained" color="success" onClick={() => counterStore.increment()}>Increment</Button>
+                    <Button variant="contained" color="primary" onClick={() => counterStore.decrement(5)}>Decrement by 5</Button>
+                    <Button variant="contained" color="primary" onClick={() => counterStore.increment(5)}>Increment by 5</Button>
+                </ButtonGroup>
+            </>
+        )
+    }
+
+*. Add this path in the routes
+    {
+        path: 'counter',
+        element: <Counter />
+    },
+
+*. Using an alternative approach with MobX
+    *. using observer function
+        import { Box, Button, ButtonGroup, List, ListItemText, Typography } from "@mui/material";
+        import { useStore } from "../../lib/hooks/useStore"
+        import { observer } from 'mobx-react-lite';
+
+        const Counter = observer(function Counter() {
+            const { counterStore } = useStore();
+
+            return (
+                <Box display='flex' justifyContent='space-between'>
+                    <Box sx={{ width: '60%' }}>
+                        <Typography variant='h4' gutterBottom>{counterStore.title}</Typography>
+                        <Typography variant="h6">The count is {counterStore.count}</Typography>
+
+                        <ButtonGroup sx={{ mt: 3 }}>
+                            <Button variant="contained" color="error" onClick={() => counterStore.decrement()}>Decrement</Button>
+                            <Button variant="contained" color="success" onClick={() => counterStore.increment()}>Increment</Button>
+                            <Button variant="contained" color="primary" onClick={() => counterStore.decrement(5)}>Decrement by 5</Button>
+                            <Button variant="contained" color="primary" onClick={() => counterStore.increment(5)}>Increment by 5</Button>
+                        </ButtonGroup>
+                    </Box>
+                    <Box sx={{ width: '40%', p: 4 }}>
+                        <Typography variant="h5">
+                            Counter events ({counterStore.eventCount})
+                        </Typography>
+                        <List>
+                            {
+                                counterStore.events.map((event, index) => (
+                                    <ListItemText key={index}>{event}</ListItemText>
+                                ))
+                            }
+                        </List>
+                    </Box>
+                </Box>
+            )
+        });
+
+        export default Counter
+
+    *. using makeAutoObservable
+        import { makeAutoObservable, } from 'mobx'
+
+        export default class CounterStore {
+            title = "Counter store";
+            count = 42;
+            events: string[] = [
+                `Initial count is this ${this.count}`
+            ]
+
+            constructor() {
+                makeAutoObservable(this);
+            }
+
+            increment = (amount = 1) => {
+                this.count += amount;
+                this.events.push(`Incremented by ${amount} - count is now ${this.count}`);
+            }
+
+            decrement = (amount = 1) => {
+                this.count -= amount;
+                this.events.push(`Decremented by ${amount} - count is now ${this.count}`);
+            }
+
+            get eventCount()
+            {
+                return this.events.length;
+            }
+        }
+
+*. uiStore.ts
+    import { makeAutoObservable } from "mobx";
+
+    export class UiStore
+    {
+        isLoading = false;
+
+        constructor()
+        {
+            makeAutoObservable(this);
+        }
+
+        isBusy()
+        {
+            this.isLoading = true;
+        }
+
+        isIdle()
+        {
+            this.isLoading = false;
+        }
+    }
+
+*. agent.ts
+    agent.interceptors.request.use(config => {
+        store.uiStore.isBusy();
+        return config;
+    });
+
+    agent.interceptors.response.use(async response => {
+        try {
+            await sleep(100);
+            return response;
+        }
+        catch (error) {
+            console.log(error);
+            return Promise.reject(error);
+        }
+        finally{
+            store.uiStore.isIdle();
+        }
+    });
+
+*. Navbar.tsx
+    <Observer>
+        {() => uiStore.isLoading ? (
+            <LinearProgress
+                color="secondary"
+                sx={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 4
+                }}
+            />
+        ) : null}
+    </Observer>
+
+*. useActivities.ts
+    const { data: activities, isPending } = useQuery({
+        queryKey: ['activities'],
+        queryFn: async () => {
+            const response = await agent.get<Activity[]>("/activities");
+            return response.data;
+        },
+        enabled: !id && location.pathname === '/activities',
+    });
+
+*. Summary
+    *. By integrating MobX and MobX React Lite:
+    *. You gain automatic reactivity with minimal boilerplate.
+    *. Application state remains predictable, readable, and efficient.
+    *. The architecture scales easily with modular stores and React Context.
