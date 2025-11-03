@@ -75,18 +75,18 @@ The architecture and functionality can then evolve in parallel.
 			*. API Project
 				*. HTTPS Configuration (launchSettings.json):
 					{
-					"$schema": "https://json.schemastore.org/launchsettings.json",
-					"profiles": {
-						"https": {
-						"commandName": "Project",
-						"dotnetRunMessages": true,
-						"launchBrowser": false,
-						"applicationUrl": "https://localhost:7026",
-						"environmentVariables": {
-							"ASPNETCORE_ENVIRONMENT": "Development"
+						"$schema": "https://json.schemastore.org/launchsettings.json",
+						"profiles": {
+							"https": {
+								"commandName": "Project",
+								"dotnetRunMessages": true,
+								"launchBrowser": false,
+								"applicationUrl": "https://localhost:7026",
+								"environmentVariables": {
+									"ASPNETCORE_ENVIRONMENT": "Development"
+								}
+							}
 						}
-						}
-					}
 					}
 
 					*. Remove the API.http file
@@ -145,8 +145,8 @@ The architecture and functionality can then evolve in parallel.
 					*. After that go back to API Project to add AppDbContext to services
 
 	*. Running the .Net application
-			Run the application from the API project using:
-				dotnet watch
+		Run the application from the API project using:
+			dotnet watch
 
 	*. Entity Framework Configuration
 		*. In the API project’s appsettings.json, define the connection string:

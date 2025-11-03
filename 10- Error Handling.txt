@@ -1,0 +1,849 @@
+*. 🎯 Learning Goals
+    *. Implement Validation using FluentValidation
+    *. Handle HTTP Error Responses gracefully
+    *. Manage Exceptions at the middleware level
+    *. Create and integrate Custom Middleware
+    *. Use Axios interceptors for consistent client-side error handling
+
+*. 🌐 HTTP Error Responses Overview
+    Status          Code	            Meaning	Description
+    200	            OK	                Request succeeded
+    400	            Bad Request	        Invalid client request
+    401	            Unauthorized	    Authentication required or failed
+    403	            Forbidden	        Insufficient permissions
+    404	            Not Found	        Requested resource doesn’t exist
+    500	            Server Error	    Generic server-side failure
+
+*. 🧩 Server Side
+    *. Application Project
+        *. Fluent Validation Setup
+            *. Install FluentValidation Package:
+                dotnet add package FluentValidation
+        *. Create DTOs Folder
+            Location: Application/Activities/DTOs
+            Files:
+                BaseActivityDto.cs
+                CreateActivityDto.cs
+                EditActivityDto.cs
+        *. Add Mapping Profiles
+            Location: Application/MappingProfiles
+        *. Create Validators Folder
+            Location: Application/Activities/Validators
+            BaseActivityValidator.cs
+            CreateActivityValidator.cs
+            EditActivityValidator.cs
+        *. ⚙️ Adding Validation Middleware
+            Create file: Application/Core/ValidationBehavior.cs
+            This handles automatic validation of requests before they reach handlers.
+        *. ⚙️ AppException (Structured Exception Model)
+            File: Application/Core/AppException.cs
+            The AppException class defines a consistent error model used throughout the application — 
+            whether validation or system errors occur.
+        *. ⚙️ Handling API Error Responses
+            Create file: Application/Core/Result.cs
+            Encapsulates API response results (success/failure) and error messages in a unified format.
+        *. Update Commands
+            Location: Application/Activities/Commands
+            CreateActivity.cs -> Use Validation with CreateActivityDto
+            DeleteActivity
+            EditActivity.cs
+        *. Update Queries
+            Location: Application/Activities/Queries
+            GetActivityDetails
+            GetActivityList
+
+    *. 🧱 API Project (Middleware & Exception Handling)
+        *. Update Program.cs
+            *. Add the following in service configuration:
+                builder.Services.AddValidatorsFromAssemblyContaining<CreateActivityValidator>();
+                builder.Services.AddOpenBehavior(typeof(ValidationBehavior<,>));
+                builder.Services.AddTransient<ExceptionMiddleware>();
+            *. Add middleware usage in pipeline:
+                app.UseMiddleware<ExceptionMiddleware>();
+
+        *. Create Exception Handling Middleware
+            Location: API/Middleware/ExceptionMiddleware.cs
+            Responsibilities:
+                Handle ValidationException
+                Handle general Exception
+                Return formatted API error responses
+
+        *.🔹 Controller Updates
+            BaseApiController.cs → Add HandleResult() helper
+            ActivitiesController.cs → Use HandleResult() for all responses
+            BuggyController.cs → Create endpoints to test different error types
+
+*. Client Side (React + TypeScript)
+    *. 📁 Error Pages
+        Create folder: src/features/errors
+        Files:
+            TestErrors.tsx
+            NotFound.tsx
+            ServerError.tsx
+    *.🔹 Update Routes and Navbar
+        In Routes.tsx → add error routes
+            {
+                path: 'not-found',
+                element: <NotFound />
+            },
+            {
+                path: 'server-error',
+                element: <ServerError />
+            },
+            {
+                path: '*',
+                element: <Navigate replace to='/no-found' />
+            },
+        In Navbar.tsx → add link:
+            <MenuItemLink to='/errors'>
+                Errors
+            </MenuItemLink>
+
+    *.🔹 Install Toast Notifications
+        npm install react-toastify
+
+    *.🔹 Update main.tsx
+        Add toast configuration
+    *.🔹 Update agent.ts (Axios Interceptors)
+        Add Axios interceptors for:
+            Handling HTTP errors globally
+            Displaying toasts for error notifications
+
+*. BaseActivityDto.cs
+    namespace Application.Activities.DTOs;
+
+    public class BaseActivityDto
+    {
+        public string? Title { get; set; } = string.Empty;
+        public string? Description { get; set; } = string.Empty;
+        public string? Category { get; set; } = string.Empty;
+        public DateTime Date { get; set; }
+        public string? City { get; set; } = string.Empty;
+        public string? Venue { get; set; } = string.Empty;
+        public double? Longitude { get; set; }
+        public double? Latitude { get; set; }
+    }
+
+*. CreateActivityDto.cs
+    namespace Application.Activities.DTOs;
+
+    public class CreateActivityDto : BaseActivityDto
+    {
+    }
+
+*. EditActivityDto.cs
+    namespace Application.Activities.DTOs;
+
+    public class EditActivityDto : BaseActivityDto
+    {
+        public string Id { get; set; } = string.Empty;
+    }
+
+*. MappingProfiles.cs
+    using Domain;
+    using AutoMapper;
+    using Application.Activities.DTOs;
+
+    namespace Application.Core;
+
+    public class MappingProfiles: Profile
+    {
+        public MappingProfiles()
+        {
+            CreateMap<Activity, Activity>();
+            CreateMap<CreateActivityDto, Activity>();
+            CreateMap<EditActivityDto, Activity>();
+        }
+    }
+
+*. BaseActivityValidator.cs
+    using Application.Activities.DTOs;
+    using FluentValidation;
+
+    namespace Application.Activities.Validators;
+
+    public class BaseActivityValidator<T, TDto>: AbstractValidator<T> where TDto : BaseActivityDto
+    {
+        public BaseActivityValidator(Func<T, TDto> selector)
+        {
+            RuleFor(x => selector(x).Title)
+            .NotEmpty()
+            .WithMessage("Title is required")
+            .MaximumLength(100)
+            .WithMessage("Title must not exceed 100 characters");
+
+            RuleFor(x => selector(x).Description)
+            .NotEmpty()
+            .WithMessage("Description is required");
+
+            RuleFor(x => selector(x).Date)
+            .GreaterThan(DateTime.UtcNow)
+            .WithMessage("Date must be in the future");
+
+            RuleFor(x => selector(x).Category)
+            .NotEmpty()
+            .WithMessage("Category is required");
+
+            RuleFor(x => selector(x).City)
+            .NotEmpty()
+            .WithMessage("City is required");
+
+            RuleFor(x => selector(x).Venue)
+            .NotEmpty()
+            .WithMessage("Venue is required");
+
+            RuleFor(x => selector(x).Latitude)
+            .NotEmpty()
+            .WithMessage("Laltitude is required")
+            .InclusiveBetween(-90, 90)
+            .WithMessage("Latitdue must be between -90 and 90");
+
+            RuleFor(x => selector(x).Longitude)
+            .NotEmpty()
+            .WithMessage("Longitude is required")
+            .InclusiveBetween(-180, 180)
+            .WithMessage("Longitude must be between -180 and 180");
+        }
+    }
+
+*. CreateActivityValidator.cs
+    using Application.Activities.Commands;
+    using Application.Activities.DTOs;
+
+    namespace Application.Activities.Validators;
+
+    public class CreateActivityValidator : BaseActivityValidator<CreateActivity.Command, CreateActivityDto>
+    {
+        public CreateActivityValidator() : base(x => x.AcitivityDto)
+        {
+        }
+    }
+
+*. EditActivityValidator.cs
+    using Application.Activities.Commands;
+    using Application.Activities.DTOs;
+    using FluentValidation;
+
+    namespace Application.Activities.Validators;
+
+    public class EditActivityValidator : BaseActivityValidator<EditActivity.Command, EditActivityDto>
+    {
+        public EditActivityValidator() : base(x => x.ActivityDto)
+        {
+            RuleFor(x => x.ActivityDto.Id)
+            .NotEmpty()
+            .WithMessage("Id is required");
+        }
+    }
+
+*. ValidatorBehavior.cs
+    using FluentValidation;
+    using MediatR;
+
+    namespace Application.Core;
+
+    public class ValidatorBehavior<TRequest, TResponse>(IValidator<TRequest>? validator = null)
+        : IPipelineBehavior<TRequest, TResponse> where TRequest : notnull
+    {
+        public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
+        {
+            if (validator is null)
+            {
+                return await next(cancellationToken);
+            }
+
+            var validationResult = await validator.ValidateAsync(request, cancellationToken);
+            if (!validationResult.IsValid)
+            {
+                throw new ValidationException(validationResult.Errors);
+            }
+
+            return await next(cancellationToken);
+        }
+    }
+
+*. Result.cs
+    namespace Application.Core;
+
+    public class Result<T>
+    {
+        public bool IsSuccess { get; set; }
+        public T? Value { get; set; }
+        public string? Error { get; set; }
+        public int Code { get; set; }
+        public static Result<T> Success(T value) => new()
+        {
+            IsSuccess = true,
+            Value = value
+        };
+        public static Result<T> Failure(string error, int code) => new()
+        {
+            IsSuccess = false,
+            Error = error,
+            Code = code
+        };
+    }
+
+*. AppException.cs
+    namespace Application.Core;
+
+    public class AppException(int statusCode, string message, string? details)
+    {
+        public int StatusCode { get; set; } = statusCode;
+        public string Message { get; set; } = message;
+        public string? Details { get; set; } = details;
+    }
+
+
+*. CreateActivity.cs 
+    using Application.Activities.DTOs;
+    using Application.Core;
+    using AutoMapper;
+    using Domain;
+    using FluentValidation;
+    using MediatR;
+    using Persistence;
+
+    namespace Application.Activities.Commands;
+
+    public class CreateActivity
+    {
+        public class Command : IRequest<Result<string>>
+        {
+            public required CreateActivityDto AcitivityDto { get; set; }
+        }
+
+        public class Handler(AppDbContext context, IMapper mapper) : IRequestHandler<Command, Result<string>>
+        {
+            public async Task<Result<string>> Handle(Command request, CancellationToken cancellationToken)
+            {            
+                var activity = mapper.Map<Activity>(request.AcitivityDto);
+                await context.Activities.AddAsync(activity, cancellationToken);
+
+                var result = await context.SaveChangesAsync(cancellationToken) > 0;
+                if (!result)
+                {
+                    return Result<string>.Failure("Failed to create the activity", 400);
+                }
+
+                return Result<string>.Success(activity.Id);
+            }
+        }
+    }
+
+*. EditActivity.cs
+    using Application.Activities.DTOs;
+    using Application.Core;
+    using AutoMapper;
+    using MediatR;
+    using Persistence;
+
+    namespace Application.Activities.Commands;
+
+    public class EditActivity
+    {
+        public class Command : IRequest<Result<Unit>>
+        {
+            public required EditActivityDto ActivityDto { get; set; }
+        }
+
+        public class Handler(AppDbContext context, IMapper mapper) : IRequestHandler<Command, Result<Unit>>
+        {
+            public async Task<Result<Unit>> Handle(Command request, CancellationToken cancellationToken)
+            {
+                var activity = await context.Activities.FindAsync([request.ActivityDto], cancellationToken);
+                if (activity is null)
+                {
+                    return Result<Unit>.Failure("Activity not found", 400);
+                }
+
+                mapper.Map(request.ActivityDto, activity);
+
+                var result = await context.SaveChangesAsync(cancellationToken) > 0;
+                if (!result)
+                {
+                    return Result<Unit>.Failure("Failed to update the activity", 400);
+                }
+
+                return Result<Unit>.Success(Unit.Value);
+            }
+        }
+    }
+
+*. DeleteActivity.cs
+    using Application.Core;
+    using MediatR;
+    using Persistence;
+
+    namespace Application.Activities.Commands;
+
+    public class DeleteActivity
+    {
+        public class Command : IRequest<Result<Unit>>
+        {
+            public required string Id { get; set; }
+        }
+
+        public class Handler(AppDbContext context) : IRequestHandler<Command, Result<Unit>>
+        {
+            public async Task<Result<Unit>> Handle(Command request, CancellationToken cancellationToken)
+            {
+                var activity = await context.Activities.FindAsync([request.Id], cancellationToken);
+                if (activity is null)
+                {
+                    return Result<Unit>.Failure("Activity not found", 404);
+                }
+
+                context.Remove(activity);
+                var result = await context.SaveChangesAsync(cancellationToken) > 0;
+                if (!result)
+                {
+                    return Result<Unit>.Failure("Failed to deleted", 400);
+                }
+
+                return Result<Unit>.Success(Unit.Value);
+            }
+        }
+    }
+
+*. GetActivityList.cs
+    using Domain;
+    using MediatR;
+    using Microsoft.EntityFrameworkCore;
+    using Persistence;
+
+    namespace Application.Activities.Queries;
+
+    public class GetActivityList
+    {
+        public class Query : IRequest<List<Activity>> { }
+
+        public class Handler(AppDbContext context) : IRequestHandler<Query, List<Activity>>
+        {
+            public async Task<List<Activity>> Handle(Query request, CancellationToken cancellationToken)
+            {
+                return await context.Activities.ToListAsync(cancellationToken);
+            }
+        }
+    }
+
+*. GetActivityDetails.cs
+    using Application.Core;
+    using Domain;
+    using MediatR;
+    using Persistence;
+
+    namespace Application.Activities.Queries;
+
+    public class GetActivityDetails
+    {
+        public class Query : IRequest<Result<Activity>>
+        {
+            public required string Id { get; set; }
+        }
+
+        public class Handler(AppDbContext context) : IRequestHandler<Query, Result<Activity>>
+        {
+            public async Task<Result<Activity>> Handle(Query request, CancellationToken cancellationToken)
+            {
+                var activity = await context.Activities.FindAsync([request.Id], cancellationToken);
+                if(activity is null)
+                {
+                    return Result<Activity>.Failure("Activity not found", 404);
+                }
+
+                return Result<Activity>.Success(activity);
+            }
+        }
+    }
+
+*. BuggyController.cs
+    using Microsoft.AspNetCore.Mvc;
+
+    namespace API.Controllers;
+
+    public class BuggyController : BaseApiController
+    {
+        [HttpGet("not-found")]
+        public ActionResult GetNotFound()
+        {
+            return NotFound();
+        }
+
+        [HttpGet("bad-request")]
+        public ActionResult GetBadRequest()
+        {
+            return BadRequest("This is a bad request");
+        }
+
+        [HttpGet("server-error")]
+        public ActionResult GetServerError()
+        {
+            throw new Exception("This is a server error");
+        }
+
+        [HttpGet("unauthorised")]
+        public ActionResult GetUnauthorised()
+        {
+            return Unauthorized();
+        }
+    }
+
+*. BaseApiController.cs
+    using Application.Core;
+    using MediatR;
+    using Microsoft.AspNetCore.Mvc;
+
+    namespace API.Controllers;
+
+    [Route("api/[controller]")]
+    [ApiController]
+    public class BaseApiController : ControllerBase
+    {
+        private IMediator? _mediator;
+
+        protected IMediator Mediator => _mediator ??= HttpContext.RequestServices.GetService<IMediator>()
+            ?? throw new InvalidOperationException("IMediator Service is unavailable");
+
+        protected ActionResult HandleResult<T>(Result<T> result)
+        {
+            if (!result.IsSuccess && result.Code == 404)
+            {
+                return NotFound();
+            }
+            
+            if (result.IsSuccess && result.Value is not null)
+            {
+                return Ok(result.Value);
+            }
+
+            return BadRequest(result.Error);
+        }
+    }
+
+*. ActivitiesController.cs
+    using Application.Activities.Commands;
+    using Application.Activities.DTOs;
+    using Application.Activities.Queries;
+    using Domain;
+    using Microsoft.AspNetCore.Mvc;
+
+    namespace API.Controllers;
+
+    public class ActivitiesController : BaseApiController
+    {
+        public async Task<ActionResult<List<Activity>>> GetActivities()
+        {
+            return await Mediator.Send(new GetActivityList.Query());
+        }
+
+        [HttpGet("{Id}")]
+        public async Task<ActionResult<Activity>> GetActivityDetail(string Id)
+        {
+            return HandleResult(await Mediator.Send(new GetActivityDetails.Query
+            {
+                Id = Id
+            }));
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<string>> CreateActivity(CreateActivityDto activityDto)
+        {
+            return HandleResult(await Mediator.Send(new CreateActivity.Command
+            {
+                AcitivityDto = activityDto
+            }));
+        }
+
+        [HttpPut]
+        public async Task<ActionResult> EditActivity(EditActivityDto activity)
+        {
+            return HandleResult(await Mediator.Send(new EditActivity.Command
+            {
+                ActivityDto = activity
+            }));
+        }
+
+        [HttpDelete("{Id}")]
+        public async Task<ActionResult> DeleteActivity(string Id)
+        {
+            return HandleResult(await Mediator.Send(new DeleteActivity.Command
+            {
+                Id = Id
+            }));
+        }
+    }
+
+*. ExceptionMiddleware.cs
+    using System.Text.Json;
+    using Application.Core;
+    using FluentValidation;
+    using Microsoft.AspNetCore.Mvc;
+
+    namespace API.Middleware;
+
+    public class ExceptionMiddleware(ILogger<ExceptionMiddleware> logger, IHostEnvironment env) : IMiddleware
+    {
+        public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+        {
+            try
+            {
+                await next(context);
+            }
+            catch (ValidationException ex)
+            {
+                await HandleValidationException(context, ex);
+            }
+            catch (Exception ex)
+            {
+                await HandleException(context, ex);
+            }
+        }
+
+        private async Task HandleException(HttpContext context, Exception ex)
+        {
+            logger.LogError(ex, ex.Message);
+            context.Response.ContentType = "application/json";
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+
+            var response = env.IsDevelopment()
+            ? new AppException(context.Response.StatusCode, ex.Message, ex.StackTrace)
+            : new AppException(context.Response.StatusCode, ex.Message, null);
+
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+
+            var json = JsonSerializer.Serialize(response, options);
+            await context.Response.WriteAsJsonAsync(json);
+        }
+
+        private static async Task HandleValidationException(HttpContext context, ValidationException ex)
+        {
+            var validationErrors = new Dictionary<string, string[]>();
+            if (ex.Errors is not null)
+            {
+                foreach (var error in ex.Errors)
+                {
+                    if (validationErrors.TryGetValue(error.PropertyName, out var existingErrors))
+                    {
+                        validationErrors[error.PropertyName] = [.. existingErrors, error.ErrorMessage];
+                    }
+                    else
+                    {
+                        validationErrors[error.PropertyName] = [error.ErrorMessage];
+                    }
+                }
+            }
+
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+            var validationProblemDetails = new ValidationProblemDetails(validationErrors)
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Type = "ValidationFailure",
+                Title = "Validation error",
+                Detail = "One or more validation errors has occured"
+            };
+
+            await context.Response.WriteAsJsonAsync(validationProblemDetails);
+        }
+    }
+
+*. Program.cs
+    using Application.Core;
+    using Application.Activities.Queries;
+    using Microsoft.EntityFrameworkCore;
+    using Persistence;
+    using FluentValidation;
+    using Application.Activities.Validators;
+    using API.Middleware;
+
+    var builder = WebApplication.CreateBuilder(args);
+
+    // Add services to the container.
+    builder.Services.AddControllers();
+    builder.Services.AddDbContext<AppDbContext>(options =>
+    {
+        options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
+    });
+
+    builder.Services.AddCors();
+    builder.Services.AddMediatR(config =>
+    {
+        config.RegisterServicesFromAssemblyContaining<GetActivityList.Handler>();
+        config.AddOpenBehavior(typeof(ValidatorBehavior<,>));
+    });
+
+    builder.Services.AddAutoMapper(cfg =>
+    {
+    }, typeof(MappingProfiles));
+
+    builder.Services.AddValidatorsFromAssemblyContaining<CreateActivityValidator>();
+    builder.Services.AddTransient<ExceptionMiddleware>();
+
+    var app = builder.Build();
+
+    // Configure the HTTP request pipeline.
+    app.UseMiddleware<ExceptionMiddleware>();
+
+    app.UseCors(options =>
+        options.AllowAnyHeader()
+        .AllowAnyMethod()
+        .WithOrigins("http://localhost:3000", "https://localhost:3001"));
+
+    app.MapControllers();
+
+    using var scope = app.Services.CreateScope();
+    var services = scope.ServiceProvider;
+
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>();
+        await context.Database.MigrateAsync();
+        await DbInitializer.SeedData(context);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Ann error occured during migration. ");
+    }
+
+    app.Run();
+
+*. Routes.tsx
+    import { createBrowserRouter, Navigate } from 'react-router'
+    import App from '../layout/App'
+    import HomePage from '../../features/home/HomePage'
+    import ActivityDashboard from '../../features/activities/dashboard/ActivityDashboard'
+    import ActivityForm from '../../features/activities/form/ActivityForm'
+    import ActivityDetailPage from '../../features/activities/details/ActivityDetailPage'
+    import Counter from '../../features/counter/Counter'
+    import TestErrors from '../../features/errors/TestErrors'
+    import NotFound from '../../features/errors/NotFound'
+    import ServerError from '../../features/errors/ServerError'
+
+    export const router = createBrowserRouter([
+        {
+            path: '/',
+            element: <App />,
+            children: [
+                {
+                    path: '',
+                    element: <HomePage />
+                },
+                {
+                    path: 'activities',
+                    element: <ActivityDashboard />
+                },
+                {
+                    path: 'activities/:id',
+                    element: <ActivityDetailPage />
+                },
+                {
+                    path: 'createActivity',
+                    element: <ActivityForm key='create' />
+                },
+                {
+                    path: 'manage/:id',
+                    element: <ActivityForm />
+                },
+                {
+                    path: 'counter',
+                    element: <Counter />
+                },
+                {
+                    path: 'errors',
+                    element: <TestErrors />
+                },
+                {
+                    path: 'not-found',
+                    element: <NotFound />
+                },
+                {
+                    path: 'server-error',
+                    element: <ServerError />
+                },
+                {
+                    path: '*',
+                    element: <Navigate replace to='/no-found' />
+                },
+            ]
+        }
+    ])
+
+*. main.tsx
+    import { StrictMode } from 'react'
+    import { createRoot } from 'react-dom/client'
+    import './app/layout/styles.css'
+    import '@fontsource/roboto/300.css';
+    import '@fontsource/roboto/400.css';
+    import '@fontsource/roboto/500.css';
+    import '@fontsource/roboto/700.css';
+    import 'react-toastify/dist/ReactToastify.css';
+    import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+    import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+    import { RouterProvider } from 'react-router';
+    import { router } from './app/router/Routes';
+    import { store, StoreContext } from './lib/stores/store';
+    import { ToastContainer } from 'react-toastify';
+
+    const queryClient = new QueryClient();
+        
+    createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+        <StoreContext.Provider value={store}>
+        <QueryClientProvider client={queryClient}>
+            <ReactQueryDevtools />
+            <ToastContainer position='bottom-right' hideProgressBar theme='colored' />
+            <RouterProvider router={router} />
+        </QueryClientProvider>
+        </StoreContext.Provider>
+    </StrictMode>,
+    )
+
+*. agent.ts
+    agent.interceptors.response.use(
+        async response => {
+            store.uiStore.isIdle();
+            return response;
+        },
+        async error => {
+            store.uiStore.isIdle();
+
+            const { status, data } = error.response;
+            switch (status) {
+                case 400:
+                    if (data.errors) {
+                        const modelStateErrors = [];
+                        for (const key in data.errors) {
+                            if (data.errors[key]) {
+                                modelStateErrors.push(data.errors[key]);
+                            }
+                        }
+
+                        throw modelStateErrors.flat();
+                    }
+                    else {
+                        toast.error(data);
+                    }
+
+                    break;
+                case 401:
+                    toast.error("Unauthorized - 401");
+                    break;
+                case 403:
+                    toast.error("Forbidden - 403");
+                    break;
+                case 404:
+                    router.navigate('/not-found');
+                    break;
+                case 500:
+                    router.navigate('/server-error', { state: { error: data } });
+                    break;
+            }
+
+            return Promise.reject(error);
+        }
+    );
