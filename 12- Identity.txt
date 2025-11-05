@@ -1,0 +1,255 @@
+*. 🧠 Learning Goals
+    *. Understand ASP.NET Core Identity and its membership system.
+    *. Learn how to use Identity endpoints in a Web API.
+    *. Implement user registration and login.
+    *. Handle authenticated requests and apply authorization policies.
+
+*. ⚙️ ASP.NET Core Identity Overview
+    ASP.NET Core Identity provides a membership system that adds login, 
+    registration, and role-based authentication to your app.
+    *. Key Concepts
+        *. UserManager – Handles user creation, deletion, password management, etc.
+        *. SignInManager – Handles authentication and cookie management.
+        *. IdentityRole – Supports roles for authorization.
+        *. EntityFramework Stores – Persist users and roles to your database.
+        *. External providers (e.g. Google, Microsoft, Facebook) are supported.
+
+    *. 📖 Reference:
+        Microsoft Docs: ASP.NET Core Identity with SPA
+            https://learn.microsoft.com/en-us/aspnet/core/security/authentication/identity-api-authorization?view=aspnetcore-9.0
+
+*. 🔐 Password Hashing & Salting
+    Passwords are not stored in plain text.
+    ASP.NET Core Identity automatically:
+        *. Hashes passwords using PBKDF2.
+        *. Generates a unique salt for each password.
+        *. Verifies passwords securely using hashing comparison.
+    This prevents exposure of real passwords even if the database is compromised.
+    
+*. 🧭 Pragmatism Concept
+    Pragmatism in authentication means balancing security, usability, and developer simplicity.
+    You implement only what’s necessary for your app’s context — 
+    not overcomplicating password policies or adding unnecessary external providers unless required.
+
+*. 🧱 Adding the User Entity
+    In the Domain Project
+        Create a User entity class that inherits from IdentityUser:
+            using Microsoft.AspNetCore.Identity;
+
+            namespace Domain;
+
+            public class User: IdentityUser
+            {
+                public string? DisplayName { get; set; }
+                public string? Bio { get; set; }
+                public string? Image { get; set; }
+            }
+
+*. 🗃️ Configuring Persistence
+    In the Persistence Project
+        *. Modify AppDbContext.cs:
+            using Domain;
+            using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+            using Microsoft.EntityFrameworkCore;
+
+            namespace Persistence;
+
+            public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<User>(options)
+            {
+                public required DbSet<Activity> Activities { get; set; }
+            }
+
+        *. Seed Users in Database
+            Edit DbInitializer.cs to seed users:
+                using Domain;
+                using Microsoft.AspNetCore.Identity;
+
+                namespace Persistence;
+
+                public class DbInitializer
+                {
+                    public static async Task SeedData(AppDbContext context, UserManager<User> userManager)
+                    {
+                        if (!userManager.Users.Any())
+                        {
+                            var users = new List<User>
+                            {
+                                new() { UserName = "issakassas1993@gmail.com", DisplayName = "Issa", Email = "issakassas1993@gmail.com" },
+                                new() { UserName = "ayaosman12197@gmail.com", DisplayName = "Aya", Email = "ayaosman12197@gmail.com" },
+                                new() { UserName = "react-vite@gmail.com", DisplayName = "React", Email = "react-vite@gmail.com" },
+                                new() { UserName = "dotnetcore9@gmail.com", DisplayName = "React", Email = "dotnetcore9@gmail.com" },
+                            };
+
+                            foreach (var user in users)
+                            {
+                                await userManager.CreateAsync(user, "Pa$$w0rd");
+                            }
+                        }
+
+                        if (context.Activities.Any())
+                        {
+                            return;
+                        }
+                    }
+                }
+
+*. 🧩 Configuring Identity in the API Project
+    *. Program.cs
+        using Microsoft.AspNetCore.Authorization;
+        using Microsoft.AspNetCore.Identity;
+        using Microsoft.AspNetCore.Mvc.Authorization;
+        using Domain.Entities;
+        using Persistence;
+
+        var builder = WebApplication.CreateBuilder(args);
+        builder.Services.AddControllers(options =>
+        {
+            var policy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+            options.Filters.Add(new AuthorizeFilter(policy));
+        });
+
+        builder.Services.AddIdentityApiEndpoints<User>(options =>
+        {
+            options.Password.RequireNonAlphanumeric = false;
+        })
+        .AddRoles<IdentityRole>()
+        .AddEntityFrameworkStores<AppDbContext>();
+
+        builder.Services.AddCors(options =>
+            options.AddDefaultPolicy(policy =>
+                policy.AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials()
+                    .WithOrigins("http://localhost:3000", "https://localhost:3001")));
+
+        var app = builder.Build();
+
+        app.UseCors();
+        app.UseAuthentication();
+        app.UseAuthorization();
+
+        app.MapControllers();
+        app.MapGroup("api").MapIdentityApi<User>();
+
+        var scope = app.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<AppDbContext>();
+        var userManager = services.GetRequiredService<UserManager<User>>();
+        await context.Database.MigrateAsync();
+        await DbInitializer.SeedData(context, userManager);
+
+        app.Run();
+
+*. 🧾 Migrations
+    Run the following commands to create and apply migrations:
+        dotnet ef migrations add IdentityAdded -p Persistence -s API
+        dotnet ef database update -p Persistence -s API
+
+*. 🧪 Testing Identity Endpoints
+    Identity API automatically exposes endpoints under /api via MapIdentityApi<User>().
+    Examples:
+        POST /api/register
+        POST /api/login
+        GET /api/manage/info
+
+    To test authentication:
+        Add [Authorize] to any controller.
+        Make requests with a valid JWT token returned from login.
+
+*. 👤 Creating Registration and Login
+    *. DTO directory — RegisterDto.cs
+        using System.ComponentModel.DataAnnotations;
+
+        namespace API.DTOs;
+
+        public class RegisterDto
+        {
+            [Required]
+            public string? DisplayName { get; set; }
+
+            [Required]
+            [EmailAddress]
+            public string? Email { get; set; }
+
+            [Required]
+            public string? Password { get; set; }
+        }
+    
+    *. AccountController.cs
+        using API.DTOs;
+        using Domain;
+        using Microsoft.AspNetCore.Authorization;
+        using Microsoft.AspNetCore.Identity;
+        using Microsoft.AspNetCore.Mvc;
+
+        namespace API.Controllers;
+
+        public class AccountController(SignInManager<User> signInManager) : BaseApiController
+        {
+            [AllowAnonymous]
+            [HttpPost("register")]
+            public async Task<IActionResult> RegisterUser(RegisterDto registerDto)
+            {
+                var user = new User
+                {
+                    DisplayName = registerDto.DisplayName,
+                    Email = registerDto.Email,
+                    UserName = registerDto.Email
+                };
+
+                var result = await signInManager.UserManager.CreateAsync(user, registerDto.Password!);
+                if (!result.Succeeded)
+                {
+                    foreach (var error in result.Errors)
+                    {
+                        ModelState.AddModelError(error.Code, error.Description);
+                    }
+
+                    return ValidationProblem(ModelState);
+                }
+
+                return Ok();
+            }
+
+            [AllowAnonymous]
+            [HttpGet("user-info")]
+            public async Task<ActionResult<User>> GetUserInfo()
+            {
+                if (!User.Identity!.IsAuthenticated)
+                {
+                    return NoContent();
+                }
+
+                var user = await signInManager.UserManager.GetUserAsync(User);
+                if (user is null)
+                {
+                    return Unauthorized();
+                }
+
+                return Ok(new
+                {
+                    user!.DisplayName,
+                    user.Email,
+                    user.UserName,
+                    user.Image
+                });
+            }
+
+            [HttpPost("logout")]
+            public async Task<IActionResult> Logout()
+            {
+                await signInManager.SignOutAsync();      
+                return NoContent();
+            }
+        }
+
+*. 📊 System Flow Summary
+    Define User entity
+    Configure DbContext with Identity support
+    Add Identity services in Program.cs
+    Seed initial users
+    Run migrations
+    Use Identity endpoints for login/register
+    Protect API routes with [Authorize]
