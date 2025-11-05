@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import agent from "../api/agent";
 import { useLocation } from "react-router";
+import type { Activity } from "../types";
 
 export const useActivities = (id?: string) => {
     const queryClient = useQueryClient();
@@ -19,6 +20,7 @@ export const useActivities = (id?: string) => {
         queryKey: ['activities', id],
         queryFn: async () => {
             const response = await agent.get<Activity>(`/activities/${id}`);
+            console.log(response.data);
             return response.data;
         },
         enabled: !!id

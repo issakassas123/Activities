@@ -109,6 +109,21 @@
             Handling HTTP errors globally
             Displaying toasts for error notifications
 
+*. 🧭 Error Handling Flow (Diagram Overview)
+    Client Request
+        ↓
+    API Endpoint
+        ↓
+    ValidationBehavior (checks DTOs)
+        ↓
+    ExceptionMiddleware (wraps exceptions)
+        ↓
+    AppException → JSON Response
+        ↓
+    Axios Interceptor (client)
+        ↓
+    React Toast Notification
+
 *. BaseActivityDto.cs
     namespace Application.Activities.DTOs;
 

@@ -1,0 +1,444 @@
+🧾 React Hook Form & Reusable Components Integration Guide
+*. 🎯 Learning Goals
+    *. Use React Hook Form for client-side form management
+    *. Add Validation using Zod and @hookform/resolvers
+    *. Create Reusable Form Components (Text, Select, Date, and Location inputs)
+    *. Integrate Map View with React Leaflet
+
+*. ⚙️ Setting up React Hook Form
+    *. 🔹 Documentation
+        📘 Visit: https://react-hook-form.com
+    *. 🔹 Installation
+        npm install react-hook-form
+        npm install @hookform/resolvers zod`
+
+*. 📁 Folder Structure
+    src/
+    └── lib/
+        ├── hooks/
+        └── schemas/
+
+*. 🧩 Validating Inputs with Zod
+    *. Create a new directory:
+        src/lib/schemas/
+    *. Add a schema file:
+        File: activitySchema.ts
+
+*. 🧱 Reusable Form Inputs
+    All reusable inputs will be placed inside:
+        src/shared/components/
+
+    *. 🔹 TextInput
+        File: TextInput.tsx
+
+    *. 🔹 SelectInput
+        File: SelectInput.tsx
+        File: categoryOptions.ts
+
+    *. 🔹 DateTimeInput
+        *. Install MUI Date Pickers
+            npm install @mui/x-date-pickers date-fns
+        *. File: DateTimeInput.tsx
+        *. Add LocalisationProvider in main.tsx
+
+    *. 🔹 LocationInput (Autocomplete)
+        *. API Source:
+            Free location API from https://locationiq.com/
+        *. Example endpoint:
+            https://api.locationiq.com/v1/autocomplete?key=pk.771c05934c3e5dd8b79d3bf1aab92ce5&&limit=5&dedupe=1&
+        *. File: LocationInput.tsx
+
+*. 🧾 Form Submission
+    *. 🔹 Edit ActivityForm.tsx
+        Initialize the form using useForm and zodResolver
+        Bind each input to reusable components
+        Add onSubmit for create/update logic
+        Add useEffect() to prefill when editing an activity
+
+*. 🗺️ Adding Map View
+    *. 🔹 Install React Leaflet
+        npm install leaflet react-leaflet
+        npm install -D @types/leaflet
+    *. 🔹 MapComponent.tsx
+        File: shared/components/MapComponent.tsx
+    *. 🔹 Update ActivityDetailInfo.tsx
+        Import and use MapComponent to show event location.
+
+*. Update ActivityForm.tsx
+    Integrate form components and map preview to make the form interactive and dynamic.
+    
+*. activitySchema.ts
+    import { z } from 'zod';
+
+    const requiredString = (fieldName: string) => z
+        .string({error: `${fieldName} is required`})
+        .min(1, { message: `${fieldName} is required` });
+
+    export const activitySchema = z.object({
+        title: requiredString('Title'),
+        description: requiredString('Description'),
+        category: requiredString('Category'),
+        date: z.coerce.date({ message: 'Date is required' }),
+        city: requiredString('City'),
+        venue: requiredString('Venue'),
+    });
+
+    export type ActivitySchema = z.infer<typeof activitySchema>;
+
+*. TextInput.tsx
+    import { TextField, type TextFieldProps } from '@mui/material';
+    import { type FieldValues, type UseControllerProps, useController } from 'react-hook-form';
+
+    type Props<T extends FieldValues> = {} & UseControllerProps<T> & TextFieldProps;
+
+    export default function TextInput<T extends FieldValues>(props: Props<T>) {
+        const { field, fieldState } = useController({ ...props });
+        
+        return (
+            <TextField
+                {...props}
+                {...field}
+                fullWidth
+                variant='outlined'
+                error={!!fieldState.error}
+                helperText={fieldState.error ? fieldState.error.message : ''}
+            />
+        )
+    }
+
+*. SelectInput.tsx
+    import { FormControl, FormHelperText, InputLabel, MenuItem, Select, type SelectProps } from '@mui/material';
+    import { type FieldValues, type UseControllerProps, useController } from 'react-hook-form';
+
+    type Props<T extends FieldValues> = {
+        items: { text: string; value: string }[];
+    } & UseControllerProps<T> & Partial<SelectProps>;
+
+    export default function SelectInput<T extends FieldValues>(props: Props<T>) {
+        const { field, fieldState } = useController({ ...props });
+
+        return (
+            <FormControl fullWidth variant='outlined' error={!!fieldState.error}>
+                <InputLabel>{props.label}</InputLabel>
+                <Select 
+                    value={field.value || ''} 
+                    onChange={field.onChange} 
+                    label={props.label}
+                >
+                    {props.items.map((item) => (
+                        <MenuItem key={item.value} value={item.value}>
+                            {item.text}
+                        </MenuItem>
+                    ))}
+                </Select>
+
+                <FormHelperText>
+                    {fieldState.error ? fieldState.error.message : ''}
+                </FormHelperText>
+            </FormControl>
+        )
+    }
+
+*. DateTimeInput.tsx
+    import { useController, type FieldValues, type UseControllerProps } from "react-hook-form"
+    import { DateTimePicker, type DateTimePickerProps } from "@mui/x-date-pickers";
+
+    type Props<T extends FieldValues> = UseControllerProps<T> & DateTimePickerProps<Date>;
+
+    export default function DateTimeInput<T extends FieldValues>(props: Props<T>) {
+        const { field, fieldState } = useController({ ...props });
+        return (
+            <DateTimePicker
+                {...props}
+                value={field.value ? new Date(field.value) : null}
+                onChange={value => {
+                    field.onChange(new Date(value!))
+                }}
+                sx={{ width: '100%' }}
+                slotProps={{
+                    textField: {
+                        onBlur: field.onBlur,
+                        error: !!fieldState.error,
+                        helperText: fieldState.error?.message
+                    }
+                }}
+            />
+        )
+    }
+
+*. LocationInput.tsx
+    import { Box, debounce, List, ListItemButton, TextField, Typography } from '@mui/material';
+    import { type FieldValues, type UseControllerProps, useController } from 'react-hook-form';
+    import type { LocationIQSuggestion } from '../../../lib/types';
+    import { useEffect, useMemo, useState } from 'react';
+    import axios from 'axios';
+
+    type Props<T extends FieldValues> = {
+        label?: string;
+    } & UseControllerProps<T>;
+
+    export default function LocationInput<T extends FieldValues>(props: Props<T>) {
+        const { field, fieldState } = useController({ ...props });
+        const [loading, setLoading] = useState(false);
+        const [suggestions, setSuggestions] = useState<LocationIQSuggestion[]>([]);
+        const [inputValue, setInputValue] = useState(field.value || '');
+
+        useEffect(() => {
+            if (field.value && typeof field.value === 'object') {
+                setInputValue(field.value.venue || '');
+            }
+            else {
+                setInputValue(field.value || '');
+            }
+        }, [field.value]);
+
+        const locationIQApiKey = "https://api.locationiq.com/v1/autocomplete?key=pk.771c05934c3e5dd8b79d3bf1aab92ce5&&limit=5&dedupe=1&";//import.meta.env.VITE_LOCATIONIQ_API_KEY;
+        const fetchSuggestions = useMemo(
+            () => debounce(async (query: string) => {
+                if (!query || query.length < 3) {
+                    setSuggestions([]);
+                    return;
+                }
+
+                setLoading(true);
+                try {
+                    const response = await axios.get<LocationIQSuggestion[]>(`${locationIQApiKey}q=${encodeURIComponent(query)}`);
+                    setSuggestions(response.data);
+                }
+                catch (error) {
+                    console.error('Error fetching location suggestions:', error);
+                }
+                finally {
+                    setLoading(false);
+                }
+            }, 500), [locationIQApiKey]
+        );
+
+        const handleChange = async (value: string) => {
+            field.onChange(value);
+            await fetchSuggestions(value);
+        };
+
+        const handleSelect = (location: LocationIQSuggestion) => {
+            const city = location.address?.city || location.address?.town || location.address?.village || '';
+            const venue = location.display_name || '';
+            const latitude = parseFloat(location.latitude);
+            const longitude = parseFloat(location.longtitude);
+            setInputValue(venue);
+            
+            field.onChange({ city, venue, latitude, longitude });
+            setSuggestions([]);
+        }
+
+        return (
+            <Box>
+                <TextField
+                    {...props}
+                    value={inputValue}
+                    onChange={e => handleChange(e.target.value)}
+                    fullWidth
+                    variant='outlined'
+                    error={!!fieldState.error}
+                    helperText={fieldState.error ? fieldState.error.message : ''}
+                />
+
+                {loading && <Typography>Loading...</Typography>}
+                {suggestions.length > 0 && (
+                    <List sx={{ border: 1 }}>
+                        {suggestions.map((suggestion: LocationIQSuggestion) => (
+                            <ListItemButton
+                                key={suggestion.place_id}
+                                divider
+                                onClick={() => handleSelect(suggestion)}
+                            >
+                                {suggestion.display_name}
+                            </ListItemButton>
+                        ))}
+                    </List>
+                )}
+            </Box>
+        )
+    }
+
+*. MapComponent.tsx
+    import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+    import 'leaflet/dist/leaflet.css';
+
+    type Props = {
+        position?: [number, number];
+        venue?: string;
+    }
+
+    export default function MapComponent({ position, venue }: Props) {
+        if (!position) {
+            return <div>No position provided</div>;
+        }
+        
+        return (
+            <MapContainer center={position} zoom={13} scrollWheelZoom={false} style={{ height: '100%' }}>
+                <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <Marker position={position}>
+                    <Popup>
+                        {venue}
+                    </Popup>
+                </Marker>
+            </MapContainer>
+        )
+    }
+
+*. ActivityForm.tsx
+    import { Box, Button, Paper, Typography } from '@mui/material'
+    import { useActivities } from '../../../lib/hooks/useActivities';
+    import { useParams } from 'react-router';
+    import { useForm } from 'react-hook-form';
+    import { useEffect } from 'react';
+    import { activitySchema, type ActivitySchema } from '../../../lib/schemas/activitySchema';
+    import { zodResolver } from '@hookform/resolvers/zod';
+    import TextInput from '../../../app/shared/components/TextInput';
+
+    export default function ActivityForm() {
+        const { control, reset, handleSubmit } = useForm<ActivitySchema>({
+            resolver: zodResolver(activitySchema),
+            mode: 'onTouched'
+        });
+
+        const { id } = useParams();
+        const { createActivity, updateActivity, activity, isLoadingActivity } = useActivities(id);
+
+        useEffect(() => {
+            if (activity) {
+                reset(activity);
+            }
+        }, [activity, reset]);
+
+        const onSubmit = async (data: ActivitySchema) => {
+            console.log(data);
+        }
+
+        if (isLoadingActivity) {
+            return <Typography>Loading...</Typography>
+        }
+
+        return (
+            <Paper sx={{
+                borderRadius: 3,
+                padding: 3
+            }}>
+                <Typography variant='h5' gutterBottom color='primary'>
+                    {activity ? "Edit Activity" : "Create Activity"}
+                </Typography>
+                <Box component='form' onSubmit={(handleSubmit(onSubmit))} display='flex' flexDirection='column' gap={3}>
+                    <TextInput label='Title' control={control} name='title' />
+                    <TextInput label='Description' multiline rows={3} control={control} name='description'/>
+                    <TextInput label='Category' control={control} name='category' />
+                    <TextInput label='Date' type='datetime-local' control={control} name='date' InputLabelProps={{ shrink: true }} />
+                    <TextInput label='City' control={control} name='city' />
+                    <TextInput label='Venue' control={control} name='venue' />
+                    <Box display='flex' justifyContent='end' gap={3}>
+                        <Button color='inherit'>Cancel</Button>
+                        <Button
+                            color='success'
+                            variant='contained'
+                            type='submit'
+                            disabled={updateActivity.isPending || createActivity.isPending}
+                        >Submit</Button>
+                    </Box>
+                </Box>
+            </Paper>
+        )
+    }
+
+*. ActivityDetailsInfo.tsx
+    import { CalendarToday, Info, Place } from "@mui/icons-material";
+    import { Box, Button, Divider, Grid, Paper, Typography } from "@mui/material";
+    import { formatDate } from "../../../lib/util/util";
+    import type { Activity } from "../../../lib/types";
+    import { useState } from "react";
+    import MapComponent from "../../../app/shared/components/MapComponent";
+
+    type Props = {
+    activity: Activity
+    }
+
+    export default function ActivityDetailsInfo({ activity }: Props) {
+    const [mapOpen, setMapOpen] = useState(false);
+
+    return (
+        <Paper sx={{ mb: 2 }}>
+        <Grid container alignItems="center" pl={2} py={1}>
+            <Grid size={1}>
+            <Info color="info" fontSize="large" />
+            </Grid>
+            <Grid size={11}>
+            <Typography>{activity.description}</Typography>
+            </Grid>
+        </Grid>
+        <Divider />
+        <Grid container alignItems="center" pl={2} py={1}>
+            <Grid size={1}>
+            <CalendarToday color="info" fontSize="large" />
+            </Grid>
+            <Grid size={11}>
+            <Typography>{formatDate(activity.date)}</Typography>
+            </Grid>
+        </Grid>
+        <Divider />
+
+        <Grid container alignItems="center" pl={2} py={1}>
+            <Grid size={1}>
+            <Place color="info" fontSize="large" />
+            </Grid>
+            <Grid size={11} display='flex' justifyContent='space-between' alignItems='center'>
+            <Typography>
+                {activity.venue}, {activity.city}
+            </Typography>
+
+            <Button onClick={() => setMapOpen(!mapOpen)}>
+                {mapOpen ? 'Hide Map' : 'Show Map'}
+            </Button>
+            </Grid>
+        </Grid>
+        {mapOpen && (
+            <Box sx={{ height: 400, width: '100%', zIndex: 1000, display: 'block' }}>
+            <MapComponent position={[activity.latitude, activity.longitude]} venue={activity.venue} />
+            </Box>
+        )}
+        </Paper>
+    )
+    }
+
+*. main.tsx
+    import { StrictMode } from 'react'
+    import { createRoot } from 'react-dom/client'
+    import './app/layout/styles.css'
+    import '@fontsource/roboto/300.css';
+    import '@fontsource/roboto/400.css';
+    import '@fontsource/roboto/500.css';
+    import '@fontsource/roboto/700.css';
+    import 'react-toastify/dist/ReactToastify.css';
+    import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+    import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+    import { RouterProvider } from 'react-router';
+    import { router } from './app/router/Routes';
+    import { store, StoreContext } from './lib/stores/store';
+    import { ToastContainer } from 'react-toastify';
+    import { LocalizationProvider } from '@mui/x-date-pickers';
+    import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV2';
+
+    const queryClient = new QueryClient();
+        
+    createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+        <LocalizationProvider dateAdapter={AdapterDateFns}>
+        <StoreContext.Provider value={store}>
+        <QueryClientProvider client={queryClient}>
+            <ReactQueryDevtools />
+            <ToastContainer position='bottom-right' hideProgressBar theme='colored' />
+            <RouterProvider router={router} />
+        </QueryClientProvider>
+        </StoreContext.Provider>
+        </LocalizationProvider>
+    </StrictMode>,
+    )
