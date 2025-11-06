@@ -13,8 +13,8 @@ import LocationInput from '../../../app/shared/components/LocationInput';
 
 export default function ActivityForm() {
     const { control, reset, handleSubmit } = useForm<ActivitySchema>({
+        mode: 'onTouched',
         resolver: zodResolver(activitySchema),
-        mode: 'onTouched'
     });
 
     const navigate = useNavigate();
@@ -28,8 +28,8 @@ export default function ActivityForm() {
                 location: {
                     city: activity.city || '',
                     venue: activity.venue || '',
-                    lat: activity.latitude || 0,
-                    lng: activity.longitude || 0
+                    latitude: activity.latitude || 0,
+                    longitude: activity.longitude || 0
                 }
             });
         }
@@ -50,8 +50,7 @@ export default function ActivityForm() {
                     }
                 );
             }
-            else
-            {
+            else {
                 await createActivity.mutateAsync(flattenedData, {
                     onSuccess: (id) => navigate(`/activities/${id}`)
                 });

@@ -3,9 +3,13 @@ import ActivityCard from './ActivityCard'
 import { useActivities } from '../../../lib/hooks/useActivities';
 
 export default function ActivitList() {
-    const { activities, isPending } = useActivities();
-    if (!activities || isPending) {
+    const { activities, isLoading } = useActivities();
+    if (isLoading) {
         return <Typography>Loading...</Typography>
+    }
+
+    if(!activities || activities.length === 0) {
+        return <Typography>No activities found</Typography>
     }
 
     return (

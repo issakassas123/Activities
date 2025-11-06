@@ -1,8 +1,5 @@
 import { z } from 'zod';
-
-const requiredString = (fieldName: string) => z
-    .string({ error: `${fieldName} is required` })
-    .min(1, { message: `${fieldName} is required` });
+import { requiredString } from '../util/util';
 
 export const activitySchema = z.object({
     title: requiredString('Title'),
@@ -11,11 +8,10 @@ export const activitySchema = z.object({
     date: z.coerce.date({ message: 'Date is required' }),
     location: z.object({
         venue: requiredString('Venue'),
-        city: requiredString('City'),
-        lat: z.number(),
-        lng: z.number(),
-    }).optional(),
-
+        city: z.string().optional(),
+        latitude: z.coerce.number(),
+        longitude: z.coerce.number(),
+    })
 });
 
 export type ActivitySchema = z.infer<typeof activitySchema>;

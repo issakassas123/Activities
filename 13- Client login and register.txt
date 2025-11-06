@@ -1,0 +1,551 @@
+🧭 Module: Client Authentication (Login, Register & Private Routes)
+*. Learning Goals
+    *. Implement client-side authentication using cookies with ASP.NET Identity.
+    *. Handle form validation and error responses gracefully using React Hook Form.
+    *. Secure parts of the client app with private routes that only allow authenticated users to access protected pages.
+
+*. 🔐 Authentication Overview
+    *. Create and validate login and registration forms.
+    *. Handle HTTP authentication and form submission errors.
+    *. Manage authentication state and protect routes based on login status.
+    *. Integrate with ASP.NET Identity endpoints using secure cookies.
+
+*. 🧱 Project Structure
+    Within the client application, create and modify the following files and folders:
+        src/
+    │
+    ├── app/
+    │   ├── features/
+    │   │   ├── account/
+    │   │   │   ├── LoginForm.tsx
+    │   │   │   └── RegisterForm.tsx
+    │   │   └── activities/
+    │   │       ├── ActivityList.tsx
+    │   │       └── ...
+    │   └── layout/
+    │       ├── Navbar.tsx
+    │       └── UserMenu.tsx
+    │
+    ├── hooks/
+    │   └── useAccount.ts
+    │
+    ├── router/
+    │   └── RequireAuth.tsx
+    │
+    ├── lib/
+    │   ├── schemas/
+    │   │   └── loginSchema.ts
+    │   └── util/
+    │       └── util.ts
+    │
+    └── main.tsx
+
+*. 1️⃣ Creating a Login form
+    *. Inside src/lib/schemas, create loginSchema.ts using Zod for form validation.
+    *. Inside src/hooks, create a new hook useAccount.ts to handle login, logout, and registration.
+    *. In src/app/features/account, create a LoginForm.tsx component to collect user credentials.
+
+    *. Update the Router
+        Add a new route for login inside Routes.tsx.
+    *. Update Axios Configuration
+        Edit agent.ts to enable cookie-based authentication:
+        const agent = axios.create({
+            baseURL: import.meta.env.VITE_API_URL,
+            withCredentials: true
+        });
+
+    *. Credentials for Testing
+        issakassas1993@gmail.com
+        Pa$$w0rd
+
+*. 2️⃣ Authenticating with the Cookie
+    *. Extend index.d.ts to include a global User interface.
+    *. Use React Query’s useQuery to fetch user information after login.
+    *. Edit NavBar.tsx to display the user’s profile and logout options dynamically.
+
+*. 3️⃣ Creating a User Menu
+    *. Create UserMenu.tsx inside the layout directory.
+    *. Import and integrate it into NavBar.tsx.
+    *. The User Menu should display:
+        *. User avatar and email
+        *. Links to profile or logout
+
+*. 4️⃣ Conditionally Fetching Data
+    To prevent unauthorized requests:
+    *. Edit useActivities.ts to skip fetching when there’s no logged-in user.
+    *. Update ActivityList.tsx to display conditional UI (e.g., “Please log in to see activities”).
+
+*. 5️⃣ Implementing Private Routes
+    To restrict access to authenticated users:
+    *. Wrap protected routes with RequireAuth in Routes.tsx.
+    *. Update useAccount.ts to store and check user authentication state.
+
+*. 6️⃣ Adding a Registration Form
+    *. Add a requiredString function in util.ts for reusable validation logic.
+    *. Create a RegisterForm.tsx inside the account directory.
+    *. Extend useAccount.ts with a registerUser mutation for user registration.
+    *. Integrate registration route into Routes.tsx.
+    
+*. 7️⃣ Handling API validation Errors
+    Inside ActivityForm or LoginForm, handle validation with:
+    Use React Hook Form’s setError method to display server-side validation errors directly in the form.
+
+*. Attention:
+    *. The first ! negates the truthiness of the value
+    (it turns truthy values into false, and falsy values into true).
+    *. The second ! negates again, converting it back to the correct boolean form (true if the original was truthy, false if falsy).
+        Value   	!!value Result
+        "hello" 	true
+        123     	true
+        []      	true
+        {}      	true
+        null    	false
+        undefined	false
+        0	        false
+        ""	        false
+
+*. loginSchema.ts
+    import { z } from "zod";
+
+    export const loginSchema = z.object({
+        email: z.string().email({ message: "Invalid email address" }),
+        password: z.string().min(8, { message: "Password must be at least 8 characters long" }),
+    });
+
+    export type LoginSchema = z.infer<typeof loginSchema>;
+
+*. useAccount.ts
+    import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+    import type { LoginSchema } from "../schemas/loginSchema";
+    import agent from "../api/agent";
+    import { useLocation, useNavigate } from "react-router";
+    import type { RegisterSchema } from "../schemas/registerSchema";
+    import { toast } from "react-toastify";
+
+    export const useAccount = () => {
+        const queryClient = useQueryClient();
+        const navigate = useNavigate();
+        const location = useLocation();
+
+        const loginUser = useMutation({
+            mutationFn: async (creds: LoginSchema) => {
+                await agent.post('/login?useCookies=true', creds);
+            },
+            onSuccess: async () => {
+                await queryClient.invalidateQueries({
+                    queryKey: ['user']
+                });
+            },
+        });
+
+        const registerUser = useMutation({
+            mutationFn: async (creds: RegisterSchema) => {
+                await agent.post('/account/register', creds);
+            },
+            onSuccess: async () => {
+                toast.success('Registration successful! You can now log in.');
+                navigate('/login');
+            },
+        });
+
+        const logoutUser = useMutation({
+            mutationFn: async () => {
+                await agent.post('account/logout');
+            },
+            onSuccess: () => {
+                queryClient.removeQueries({ queryKey: ['user'] });
+                queryClient.removeQueries({ queryKey: ['activities'] });
+                navigate('/');
+            },
+        });
+
+        const { data: currentUser, isLoading: loadingUserInfo } = useQuery({
+            queryKey: ['user'],
+            queryFn: async () => {
+                const user = await agent.get<User>('/account/user-info');
+                return user.data;
+            },
+            enabled: !queryClient.getQueryData(['user']) 
+                && location.pathname !== 'login'
+                && location.pathname !== 'register'
+        });
+
+        return {
+            loginUser,
+            currentUser,
+            loadingUserInfo,
+            logoutUser,
+            registerUser
+        };
+    }
+
+*. LoginForm.tsx
+    import { useAccount } from '../../lib/hooks/useAccount'
+    import { useForm } from 'react-hook-form';
+    import { loginSchema, type LoginSchema } from '../../lib/schemas/loginSchema';
+    import { Box, Button, Paper, Typography } from '@mui/material';
+    import TextInput from '../../app/shared/components/TextInput';
+    import { LockOpen } from '@mui/icons-material';
+    import { zodResolver } from '@hookform/resolvers/zod';
+    import { Link, useLocation, useNavigate } from 'react-router';
+
+    export default function LoginForm() {
+        const { loginUser } = useAccount();
+        const location = useLocation();
+        const Navigate = useNavigate();
+        const { control, handleSubmit, formState: { isValid, isSubmitting } } = useForm<LoginSchema>({
+            mode: 'onTouched',
+            resolver: zodResolver(loginSchema)
+        });
+
+        const onSubmit = async (data: LoginSchema) => {
+            await loginUser.mutateAsync(data, {
+                onSuccess: () => {
+                    Navigate(location.state?.from || '/activities');
+                }
+            });
+        }
+
+        return (
+            <Paper
+                component='form'
+                onSubmit={handleSubmit(onSubmit)}
+                sx={{
+                    p: 3,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    maxWidth: 'md',
+                    mx: 'auto',
+                    borderRadius: 3
+                }}>
+
+                <Box
+                    display='flex'
+                    alignItems='center'
+                    justifyContent='center'
+                    gap={3}
+                    color='secondary.main'
+                >
+                    <LockOpen fontSize='large' />
+                    <Typography variant='h4'>
+                        Sign in
+                    </Typography>
+                </Box>
+
+                <TextInput label='Email' control={control} name='email' />
+                <TextInput label='Password' type='password' control={control} name='password' />
+                <Button
+                    type='submit'
+                    disabled={!isValid || isSubmitting}
+                    variant='contained'
+                    size='large'
+                >
+                    Login
+                </Button>
+                <Typography sx={{ textAlign: 'center' }}>
+                    Don't have an account?
+                    <Typography
+                        component={Link}
+                        to='/register'
+                        color='primary'
+                        sx={{ ml: 2 }}
+                    >
+                        Sign up
+                    </Typography>
+                </Typography>
+            </Paper>
+        )
+    }
+
+*. registerSchema.ts
+    import z from "zod";
+    import { requiredString } from "../util/util";
+
+    export const registerSchema = z.object({
+        email: z.string().email({ message: 'Invalid email address' }),
+        password: requiredString('password').min(6, { message: 'Password must be at least 6 characters' }),
+        displayName: requiredString('displayName'),
+    });
+
+    export type RegisterSchema = z.infer<typeof registerSchema>;
+    
+*. RegisterForm.tsx
+    import { useForm } from 'react-hook-form';
+    import { useAccount } from '../../lib/hooks/useAccount';
+    import { registerSchema, type RegisterSchema } from '../../lib/schemas/registerSchema';
+    import { zodResolver } from '@hookform/resolvers/zod';
+    import { Box, Button, Paper, Typography } from '@mui/material';
+    import { LockOpen } from '@mui/icons-material';
+    import TextInput from '../../app/shared/components/TextInput';
+    import { Link } from 'react-router';
+
+    export default function RegisterForm() {
+        const { registerUser } = useAccount();
+        const { control, setError, handleSubmit, formState: { isValid, isSubmitting } } = useForm<RegisterSchema>({
+            mode: 'onTouched',
+            resolver: zodResolver(registerSchema)
+        });
+
+        const onSubmit = async (data: RegisterSchema) => {
+            await registerUser.mutateAsync(data, {
+                onError: (errors) => {
+                    if (Array.isArray(errors)) {
+                        errors.forEach((err: string) => {
+                            if (err.includes('Email')) {
+                                setError('email', { message: err });
+                            }
+
+                            else if (err.includes('Password')) {
+                                setError('password', { message: err })
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        return (
+            <Paper
+                component='form'
+                onSubmit={handleSubmit(onSubmit)}
+                sx={{
+                    p: 3,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    maxWidth: 'md',
+                    mx: 'auto',
+                    borderRadius: 3
+                }}>
+
+                <Box
+                    display='flex'
+                    alignItems='center'
+                    justifyContent='center'
+                    gap={3}
+                    color='secondary.main'
+                >
+                    <LockOpen fontSize='large' />
+                    <Typography variant='h4'>
+                        Register
+                    </Typography>
+                </Box>
+
+                <TextInput label='Email' control={control} name='email' />
+                <TextInput label='Display Name' control={control} name='displayName' />
+                <TextInput label='Password' type='password' control={control} name='password' />
+                <Button
+                    type='submit'
+                    disabled={!isValid || isSubmitting}
+                    variant='contained'
+                    size='large'
+                >
+                    Login
+                </Button>
+                <Typography sx={{ textAlign: 'center' }}>
+                    Already have an account
+                    <Typography
+                        component={Link}
+                        to='/login'
+                        color='primary'
+                        sx={{ ml: 2 }}
+                    >
+                        Sign in
+                    </Typography>
+                </Typography>
+            </Paper>
+        )
+    }
+
+*. RequireAuth.tsx
+    import { Navigate, Outlet, useLocation } from 'react-router';
+    import { useAccount } from '../../lib/hooks/useAccount';
+    import { Typography } from '@mui/material';
+
+    export default function RequireAuth() {
+        const { currentUser, loadingUserInfo } = useAccount();
+        const location = useLocation();
+
+        if (loadingUserInfo) {
+            return <Typography>Loading...</Typography>
+        }
+
+        if (!currentUser) {
+            return <Navigate to='/login' state={{ from: location }} />;
+        }
+
+        return (
+            <Outlet />
+        )
+    }
+
+*. Router.tsx
+    export const router = createBrowserRouter([
+        {
+            path: '/',
+            element: <App />,
+            children: [
+                {
+                    element: <RequireAuth />,
+                    children: [
+                        {
+                            path: 'activities',
+                            element: <ActivityDashboard />
+                        },
+                        {
+                            path: 'activities/:id',
+                            element: <ActivityDetailPage />
+                        },
+                        {
+                            path: 'createActivity',
+                            element: <ActivityForm key='create' />
+                        },
+                        {
+                            path: 'manage/:id',
+                            element: <ActivityForm />
+                        },
+                    ]
+                },
+                {
+                    path: 'login',
+                    element: <LoginForm />
+                },
+                {
+                    path: 'register',
+                    element: <RegisterForm />
+                },
+                {
+                    path: '*',
+                    element: <Navigate replace to='/no-found' />
+                },
+            ]
+        }
+    ])
+
+*. utils.ts
+    import { format, type DateArg } from "date-fns";
+    import z from "zod";
+
+    export function formatDate(date: DateArg<Date>)
+    {
+        return format(date, 'dd MMM yyyy h:mm a');
+    }
+
+    export const requiredString = (fieldName: string) => z
+        .string({ error: `${fieldName} is required` })
+        .min(1, { message: `${fieldName} is required` });
+
+*. agent.ts
+    const agent = axios.create({
+        baseURL: import.meta.env.VITE_API_URL,
+        withCredentials: true
+    });
+
+*. Navbar.tsx
+    <Box display='flex' alignItems='center'>
+        {currentUser ? (
+            <UserMenu />
+        ) : (
+            <>
+                <MenuItemLink to='/login'>
+                    Login
+                </MenuItemLink>
+                <MenuItemLink to='/register'>
+                    Register
+                </MenuItemLink>
+            </>
+        )}
+    </Box>
+
+*. UserMenu.tsx
+    import { Avatar, Box, Divider, ListItemIcon, ListItemText, Menu, MenuItem } from '@mui/material';
+    import Button from '@mui/material/Button';
+    import { useState } from 'react';
+    import { useAccount } from '../../lib/hooks/useAccount';
+    import { Add, Logout, Person } from '@mui/icons-material';
+    import { Link } from 'react-router';
+
+    export default function UserMenu() {
+        const { currentUser, logoutUser } = useAccount();
+        const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+        const open = Boolean(anchorEl);
+        const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+            setAnchorEl(event.currentTarget);
+        };
+
+        const handleClose = () => {
+            setAnchorEl(null);
+        };
+
+        return (
+            <>
+                <Button
+                    color='inherit'
+                    size='large'
+                    sx={{ fontSize: '1.1rem' }}
+                    onClick={handleClick}
+                >
+                    <Box
+                        display='flex'
+                        alignItems='center'
+                        gap={2}
+                    >
+                        <Avatar />
+                        {currentUser?.displayName}
+                    </Box>
+                </Button>
+
+                <Menu
+                    id="basic-menu"
+                    anchorEl={anchorEl}
+                    open={open}
+                    onClose={handleClose}
+                    slotProps={{
+                        list: {
+                            'aria-labelledby': 'basic-button',
+                        },
+                    }}
+                >
+                    <MenuItem
+                        component={Link}
+                        to='/createActivity'
+                        onClick={handleClose}
+                    >
+                        <ListItemIcon>
+                            <Add />
+                        </ListItemIcon>
+                        <ListItemText>
+                            Create Activity
+                        </ListItemText>
+                    </MenuItem>
+                    <MenuItem
+                        component={Link}
+                        to='/profile'
+                        onClick={handleClose}
+                    >
+                        <ListItemIcon>
+                            <Person />
+                        </ListItemIcon>
+                        <ListItemText>
+                            My profile
+                        </ListItemText>
+                    </MenuItem>
+                    <Divider />
+                    <MenuItem
+                        onClick={() => {
+                            logoutUser.mutate();
+                            handleClose();
+                        }}
+                    >
+                        <ListItemIcon>
+                            <Logout />
+                        </ListItemIcon>
+                        <ListItemText>
+                            Logout
+                        </ListItemText>
+                    </MenuItem>
+                </Menu>
+            </>
+        );
+    }
