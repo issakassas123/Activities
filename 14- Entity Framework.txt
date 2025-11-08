@@ -1,0 +1,548 @@
+🧭 Entity Framework Core Relationships, Loading, and Infrastructure Integration
+📚 Learning Goals
+    This module focuses on mastering Entity Framework Core relationships and query optimizations, 
+    while integrating an Infrastructure project to handle authentication and authorization logic.
+    Topics Covered
+    *. EF Relationships
+    *. Loading related entities (Eager, Explicit, Lazy)
+    *. AutoMapper Queryable Extensions
+    *. Adding and configuring an Infrastructure project
+
+⚙️ Configuring Relationships
+    🔁 Many-to-Many Relationship Setup
+        *. Create a common linking class
+            ActivityAttendees.cs
+        *. Run migrations
+            dotnet ef migrations add ActivityAttendeesAdded -p Persistence -s API
+            dotnet ef database update -p Persistence -s API
+
+🧩 Domain Project
+    Files to Create and Edit
+        *. Create: ActivityAttendees.cs
+        *. Edit: Add ICollection<ActivityAttendees> navigation properties to:
+            Activity.cs
+            User.cs
+    These define the many-to-many relationship between users and activities.
+
+🏗️ Infrastructure Project
+    *. Project Setup
+        *. Create project
+            dotnet new classlib -n Infrastructure
+        *. Add to solution
+            dotnet sln add Infrastructure
+        *. Add references
+            Reference the Application project.
+        *. Install NuGet package:
+            Microsoft.AspNetCore.App
+    *. Implementations
+        *. Create class: Security/UserAccessor.cs
+            Implements IUserAccessor interface.
+        *. Add custom authorization policy:
+            Create Security/IsHostRequirement.cs implementing IAuthorizationRequirement.
+
+🧠 Application Project
+    *. Directory: Interfaces
+        Create: IUserAccessor.cs interface.
+    *. DTOs and Profiles
+        Profiles/DTOs/UserProfile.cs
+        Activities/DTOs/ActivityDto.cs
+    *. AutoMapper Configuration
+        Add mapping in MappingProfiles.cs:
+            CreateMap<Activity, ActivityDto>();
+    *. Attendance Functionality
+        Create UpdateAttendance.cs inside the Command directory.
+    *. Query Handlers
+        Update GetActivityList.cs and GetActivityDetails.cs to return DTOs instead of full entities.
+        
+🌐 API Project
+    *. References and Services
+        *. Add reference to Infrastructure project.
+        *. Update Program.cs:
+            builder.Services.AddScoped<IUserAccessor, UserAccessor>();     
+            builder.Services.AddAuthorizationBuilder()
+            .AddPolicy("IsActivityHost", policy =>
+            {
+                policy.Requirements.Add(new IsHostRequirement());
+            });
+
+            builder.Services.AddTransient<IAuthorizationHandler, IsHostRequirementHandler>();
+
+    *. Update Controller
+        *. ActivitiesController.cs
+            Add: Attend action
+            Edit: EditActivity, GetActivityDetail and GetActivityList actions
+
+💾 Persistence Project
+    *. Updating Seed Data
+        *. Update DbInitializer.cs to include new Activities
+        *. drop the database activities.db
+            dotnet ef database drop -p Persistence -s API
+            dotnet ef database update -p Persistence -s API
+        *. Run the API project again to seed data.
+
+🔍 Loading Related Data in EF Core
+    🧩 Eager Loading
+        means that the related data is loaded from the database as part of the initial query
+        using (var context = new BloggingContext())
+        {
+            var blogs = await context.Blogs
+                .Include(blog => blog.Posts)
+                .ToListAsync();
+        }
+
+        using (var context = new BloggingContext())
+        {
+            var blogs = await context.Blogs
+                .Include(blog => blog.Posts)
+                .Include(blog => blog.Owner)
+                .ToListAsync();
+        }
+
+        With nested relationships:
+        using (var context = new BloggingContext())
+        {
+            var blogs = await context.Blogs
+                .Include(blog => blog.Posts)
+                    .ThenInclude(post => post.Author)
+                    .ThenInclude(author => author.Photo)
+                .Include(blog => blog.Owner)
+                    .ThenInclude(owner => owner.Photo)
+                .ToListAsync();
+        }
+
+    ⏩ Explicit Loading
+        means that the related data is explicitly loaded from the database at a later time
+        Load related entities on demand:
+        using (var context = new BloggingContext())
+        {
+            var blog = await context.Blogs
+                .SingleAsync(b => b.BlogId == 1);
+
+            await context.Entry(blog)
+                .Collection(b => b.Posts)
+                .LoadAsync();
+
+            await context.Entry(blog)
+                .Reference(b => b.Owner)
+                .LoadAsync();
+        }
+
+        using (var context = new BloggingContext())
+        {
+            var blog = await context.Blogs
+                .SingleAsync(b => b.BlogId == 1);
+            Or filter related data:
+            var goodPosts = await context.Entry(blog)
+                .Collection(b => b.Posts)
+                .Query()
+                .Where(p => p.Rating > 3)
+                .ToListAsync();
+        }
+
+    💤 Lazy Loading
+        means that the related data is transparently loaded from the database 
+        when the navigation property is accessed
+        Automatically load related entities when navigation properties are accessed.
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder
+                .UseLazyLoadingProxies()
+                .UseSqlServer(myConnectionString);
+
+        Or via dependency injection:
+        .AddDbContext<BloggingContext>(
+            b => b.UseLazyLoadingProxies()
+                .UseSqlServer(myConnectionString));
+
+🎨 Shaping the Data (AutoMapper)
+    Use ForMember to transform or project data:
+    CreateMap<Activity, ActivityDto>()
+        .ForMember(d => d.HostDisplayName, o => o
+            .MapFrom(s => s.Attendees
+                .FirstOrDefault(x => x.IsHost)!.User.DisplayName))
+        .ForMember(d => d.HostId, o => o
+            .MapFrom(s => s.Attendees
+                .FirstOrDefault(x => x.IsHost)!.User.Id));
+
+    *. Using Projection
+        Projection avoids unnecessary queries (e.g., password hashes):
+        var activities = await _context.Activities
+            .ProjectTo<ActivityDto>(_mapper.ConfigurationProvider)
+            .ToListAsync();
+
+🧾 Summary
+    Area	            Key Task
+    Domain	            Define entity relationships
+    Infrastructure	    Implement security and authorization
+    Application	        Handle DTOs, mappings, and business logic
+    API	                Expose endpoints and apply authorization
+    Persistence	        Manage data and seed database
+    EF Core	            Load and shape related entities efficiently
+
+*. ActivityAttendee.cs
+    namespace Domain;
+
+    public class ActivityAttendee
+    {
+        public string? UserId { get; set; }
+        public User User { get; set; } = null!;
+        public string? ActivityId { get; set; }
+        public Activity Activity { get; set; } = null!;
+        public bool IsHost { get; set; }
+        public DateTime DateJoined { get; set; } = DateTime.UtcNow;
+    }
+
+*. Activity.cs
+    namespace Domain;
+
+    public class Activity
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+        public string? Category { get; set; }
+        public DateTime Date { get; set; }
+        public string? City { get; set; }
+        public string? Venue { get; set; }
+        public bool IsCancelled { get; set; }
+        public double? Longitude { get; set; }
+        public double? Latitude { get; set; }
+
+        // navigation properties
+        public ICollection<ActivityAttendee> Attendees { get; set; } = [];
+    }
+
+*. User.cs
+    using Microsoft.AspNetCore.Identity;
+
+    namespace Domain;
+
+    public class User: IdentityUser
+    {
+        public string? DisplayName { get; set; }
+        public string? Bio { get; set; }
+        public string? Image { get; set; }
+
+        // nav properties
+        public ICollection<ActivityAttendee> Activities { get; set; } = [];
+    }
+
+*. IUserAccessor.cs
+    using Domain;
+
+    namespace Application.interfaces;
+
+    public interface IUserAccessor
+    {
+        string GetUserId();
+        Task<User> GetUserAsync();
+    }
+
+*. IsHostRequirement.cs
+    using System.Security.Claims;
+    using Microsoft.AspNetCore.Authorization;
+    using Microsoft.AspNetCore.Http;
+    using Microsoft.AspNetCore.Routing;
+    using Microsoft.EntityFrameworkCore;
+    using Persistence;
+
+    namespace Infrastructure.Security;
+
+    public class IsHostRequirement : IAuthorizationRequirement
+    {
+    }
+
+    public class IsHostRequirementHandler(AppDbContext dbContext, IHttpContextAccessor httpContextAccessor) : AuthorizationHandler<IsHostRequirement>
+    {
+        protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, IsHostRequirement requirement)
+        {
+            var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId is null)
+            {
+                return;
+            }
+
+            var httpContext = httpContextAccessor.HttpContext;
+            if (httpContext?.GetRouteValue("id") is not string activityId)
+            {
+                return;
+            }
+
+            var attendee = await dbContext.ActivityAttendees
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.UserId == userId && x.ActivityId == activityId);
+            if (attendee is null)
+            {
+                return;
+            }
+
+            if (attendee.IsHost)
+            {
+                context.Succeed(requirement);
+            }
+        }
+    }
+
+*. UserAccessor.cs
+    using System.Security.Claims;
+    using Application.interfaces;
+    using Domain;
+    using Microsoft.AspNetCore.Http;
+    using Persistence;
+
+    namespace Infrastructure.Security;
+
+    public class UserAccessor(IHttpContextAccessor httpContextAccessor, AppDbContext dbContext) : IUserAccessor
+    {
+        public async Task<User> GetUserAsync()
+        {
+            return await dbContext.Users.FindAsync(GetUserId())
+            ?? throw new UnauthorizedAccessException("No user is logged in");
+        }
+
+        public string GetUserId()
+        {
+            return httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new Exception("No user found");
+        }
+    }
+
+*. UserProfile.cs
+    namespace Application.Profiles.DTOs;
+
+    public class UserProfile
+    {
+        public required string Id { get; set; }
+        public required string DisplayName { get; set; }
+        public string? Bio { get; set; }
+        public string? Image { get; set; }
+    }
+
+*. ActivityDto.cs
+    using Application.Profiles.DTOs;
+
+    namespace Application.Activities.DTOs;
+
+    public class ActivityDto
+    {
+        public required string? Id { get; set; }
+        public required string? Title { get; set; }
+        public required string? Description { get; set; }
+        public required string? Category { get; set; }
+        public DateTime Date { get; set; }
+        public required string? City { get; set; }
+        public required string? Venue { get; set; }
+        public bool IsCancelled { get; set; }
+        public required string HostDisplayName { get; set; }
+        public required string HostId { get; set; }
+        public double? Longitude { get; set; }
+        public double? Latitude { get; set; }
+
+        // navigation properties
+        public ICollection<UserProfile> Attendees { get; set; } = [];
+    }
+
+*. MappingProfiles.cs
+    CreateMap<Activity, ActivityDto>()
+        .ForMember(d => d.HostDisplayName, o => o
+        .MapFrom(s => s.Attendees
+        .FirstOrDefault(x => x.IsHost)!.User.DisplayName))
+        .ForMember(d => d.HostId, o => o
+        .MapFrom(s => s.Attendees
+        .FirstOrDefault(x => x.IsHost)!.User.Id));
+
+    CreateMap<ActivityAttendee, UserProfile>()
+        .ForMember(d => d.DisplayName, o => o.MapFrom(s => s.User.DisplayName))
+        .ForMember(d => d.Bio, o => o.MapFrom(s => s.User.Bio))
+        .ForMember(d => d.Image, o => o.MapFrom(s => s.User.Image))
+        .ForMember(d => d.Id, o => o.MapFrom(s => s.User.Id));
+
+*. UpdateAttendance.cs
+    using Application.Core;
+    using Application.interfaces;
+    using Domain;
+    using MediatR;
+    using Microsoft.EntityFrameworkCore;
+    using Persistence;
+
+    namespace Application.Activities.Commands;
+
+    public class UpdateAttendance
+    {
+        public class Command : IRequest<Result<Unit>>
+        {
+            public required string Id { get; set; }
+        }
+
+        public class Handler(IUserAccessor userAccessor, AppDbContext context) : IRequestHandler<Command, Result<Unit>>
+        {
+            public async Task<Result<Unit>> Handle(Command request, CancellationToken cancellationToken)
+            {
+                var activity = await context.Activities
+                    .Include(x => x.Attendees)
+                    .ThenInclude(x => x.User)
+                    .SingleOrDefaultAsync(x => x.Id == request.Id, cancellationToken);
+
+                if (activity is null)
+                {
+                    return Result<Unit>.Failure("Activity not found", 404);
+                }
+
+                var user = await userAccessor.GetUserAsync();
+                var isHost = activity.Attendees.Any(x => x.IsHost && x.UserId == user.Id);
+                
+                var attendance = activity.Attendees.FirstOrDefault(x => x.UserId == user.Id);
+                if (attendance is not null)
+                {
+                    if (isHost)
+                    {
+                        activity.IsCancelled = !activity.IsCancelled;
+                    }
+                    else
+                    {
+                        activity.Attendees.Remove(attendance);
+                    }
+                }
+                else
+                {
+                    activity.Attendees.Add(new ActivityAttendee
+                    {
+                        UserId = user.Id,
+                        ActivityId = activity.Id,
+                        IsHost = false
+                    });
+                }
+
+                var result = await context.SaveChangesAsync(cancellationToken) > 0;
+                return result
+                    ? Result<Unit>.Success(Unit.Value)
+                    : Result<Unit>.Failure("Problem updating the DB", 400);
+            }
+        }
+    }
+
+*. GetActivityList.cs
+    using Application.Activities.DTOs;
+    using AutoMapper;
+    using AutoMapper.QueryableExtensions;
+    using MediatR;
+    using Microsoft.EntityFrameworkCore;
+    using Persistence;
+
+    namespace Application.Activities.Queries;
+
+    public class GetActivityList
+    {
+        public class Query : IRequest<List<ActivityDto>> { }
+
+        public class Handler(AppDbContext context, IMapper mapper) : IRequestHandler<Query, List<ActivityDto>>
+        {
+            public async Task<List<ActivityDto>> Handle(Query request, CancellationToken cancellationToken)
+            {
+                return await context.Activities
+                    .ProjectTo<ActivityDto>(mapper.ConfigurationProvider)
+                    .ToListAsync(cancellationToken);
+            }
+        }
+    }
+
+*. GetActivityDetails.cs
+    using Application.Activities.DTOs;
+    using Application.Core;
+    using AutoMapper;
+    using AutoMapper.QueryableExtensions;
+    using MediatR;
+    using Microsoft.EntityFrameworkCore;
+    using Persistence;
+
+    namespace Application.Activities.Queries;
+
+    public class GetActivityDetails
+    {
+        public class Query : IRequest<Result<ActivityDto>>
+        {
+            public required string Id { get; set; }
+        }
+
+        public class Handler(AppDbContext context, IMapper mapper) : IRequestHandler<Query, Result<ActivityDto>>
+        {
+            public async Task<Result<ActivityDto>> Handle(Query request, CancellationToken cancellationToken)
+            {
+                var activity = await context.Activities
+                .ProjectTo<ActivityDto>(mapper.ConfigurationProvider)
+                .FirstOrDefaultAsync(x => request.Id == x.Id, cancellationToken);
+
+                if (activity is null)
+                {
+                    return Result<ActivityDto>.Failure("Activity not found", 404);
+                }
+
+                return Result<ActivityDto>.Success(activity);
+            }
+        }
+    }
+
+*. ActivitiesController.cs
+    using Application.Activities.Commands;
+    using Application.Activities.DTOs;
+    using Application.Activities.Queries;
+    using Microsoft.AspNetCore.Authorization;
+    using Microsoft.AspNetCore.Mvc;
+
+    namespace API.Controllers;
+
+    public class ActivitiesController : BaseApiController
+    {
+        [HttpGet]
+        public async Task<ActionResult<List<ActivityDto>>> GetActivities()
+        {
+            return await Mediator.Send(new GetActivityList.Query());
+        }
+
+        [Authorize]
+        [HttpGet("{Id}")]
+        public async Task<ActionResult<ActivityDto>> GetActivityDetail(string Id)
+        {
+            return HandleResult(await Mediator.Send(new GetActivityDetails.Query
+            {
+                Id = Id
+            }));
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<string>> CreateActivity(CreateActivityDto activityDto)
+        {
+            return HandleResult(await Mediator.Send(new CreateActivity.Command
+            {
+                AcitivityDto = activityDto
+            }));
+        }
+
+        [HttpPut("{Id}")]
+        [Authorize(Policy = "IsActivityHost")]
+        public async Task<ActionResult> EditActivity(string Id, EditActivityDto activity)
+        {
+            activity.Id = Id;
+            return HandleResult(await Mediator.Send(new EditActivity.Command
+            {
+                ActivityDto = activity
+            }));
+        }
+
+        [HttpDelete("{Id}")]
+        public async Task<ActionResult> DeleteActivity(string Id)
+        {
+            return HandleResult(await Mediator.Send(new DeleteActivity.Command
+            {
+                Id = Id
+            }));
+        }
+
+        [HttpPost("{id}/attend")]
+        public async Task<ActionResult> Attend(string Id)
+        {
+            return HandleResult(await Mediator.Send(new UpdateAttendance.Command
+            {
+                Id = Id
+            }));
+        }
+    }

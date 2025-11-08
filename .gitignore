@@ -486,3 +486,7 @@ API/appsettings.json
 API/activities.db
 API/activities.db-shm
 API/activities.db-wal
+Persistence/Migrations/20251107204227_InitialCreate.cs
+Persistence/Migrations/20251107204227_InitialCreate.Designer.cs
+Persistence/Migrations/AppDbContextModelSnapshot.cs
+Persistence/Migrations/AppDbContextModelSnapshot.cs

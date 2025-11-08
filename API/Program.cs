@@ -9,6 +9,8 @@ using Domain;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Application.interfaces;
+using Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +35,7 @@ builder.Services.AddMediatR(config =>
     config.AddOpenBehavior(typeof(ValidatorBehavior<,>));
 });
 
+builder.Services.AddScoped<IUserAccessor, UserAccessor>();
 builder.Services.AddAutoMapper(cfg =>
 {
 }, typeof(MappingProfiles));
@@ -48,6 +51,14 @@ builder.Services.AddIdentityApiEndpoints<User>(options =>
 })
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<AppDbContext>();
+
+builder.Services.AddAuthorizationBuilder()
+.AddPolicy("IsActivityHost", policy =>
+{
+    policy.Requirements.Add(new IsHostRequirement());
+});
+
+builder.Services.AddTransient<IAuthorizationHandler, IsHostRequirementHandler>();
 
 builder.Services.AddLogging();
 
