@@ -1,12 +1,12 @@
 import { Grid, Typography } from "@mui/material"
 import { useParams } from "react-router";
 import { useActivities } from "../../../lib/hooks/useActivities";
-import ActivityDetailHeader from "./ActivityDetailsHeader";
-import ActivityDetailInfo from "./ActivityDetailsInfo";
-import ActivityDetailChat from "./ActivityDetailsChat";
-import ActivityDetailSidebar from "./ActivityDetailsSidebar";
+import ActivityDetailsHeader from "./ActivityDetailsHeader";
+import ActivityDetailsInfo from "./ActivityDetailsInfo";
+import ActivityDetailsChat from "./ActivityDetailsChat";
+import ActivityDetailsSidebar from "./ActivityDetailsSidebar";
 
-export default function ActivityDetailPage() {
+export default function ActivityDetailsPage() {
     const { id } = useParams();
     const { activity, isLoadingActivity } = useActivities(id);
 
@@ -21,12 +21,12 @@ export default function ActivityDetailPage() {
     return (
         <Grid container spacing={3}>
             <Grid size={8}>
-                <ActivityDetailHeader activity={activity} />
-                <ActivityDetailInfo activity={activity} />
-                <ActivityDetailChat />
+                <ActivityDetailsHeader activity={activity} />
+                <ActivityDetailsInfo activity={activity} />
+                <ActivityDetailsChat />
             </Grid>
             <Grid size={4}>
-                <ActivityDetailSidebar />
+                <ActivityDetailsSidebar activity={activity} />
             </Grid>
         </Grid>
     )

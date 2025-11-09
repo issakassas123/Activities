@@ -1,10 +1,10 @@
-*. 🧠 Learning Goals
+🧠 Learning Goals
     *. Understand ASP.NET Core Identity and its membership system.
     *. Learn how to use Identity endpoints in a Web API.
     *. Implement user registration and login.
     *. Handle authenticated requests and apply authorization policies.
 
-*. ⚙️ ASP.NET Core Identity Overview
+⚙️ ASP.NET Core Identity Overview
     ASP.NET Core Identity provides a membership system that adds login, 
     registration, and role-based authentication to your app.
     *. Key Concepts
@@ -14,11 +14,11 @@
         *. EntityFramework Stores – Persist users and roles to your database.
         *. External providers (e.g. Google, Microsoft, Facebook) are supported.
 
-    *. 📖 Reference:
+    📖 Reference:
         Microsoft Docs: ASP.NET Core Identity with SPA
             https://learn.microsoft.com/en-us/aspnet/core/security/authentication/identity-api-authorization?view=aspnetcore-9.0
 
-*. 🔐 Password Hashing & Salting
+🔐 Password Hashing & Salting
     Passwords are not stored in plain text.
     ASP.NET Core Identity automatically:
         *. Hashes passwords using PBKDF2.
@@ -26,12 +26,12 @@
         *. Verifies passwords securely using hashing comparison.
     This prevents exposure of real passwords even if the database is compromised.
     
-*. 🧭 Pragmatism Concept
+🧭 Pragmatism Concept
     Pragmatism in authentication means balancing security, usability, and developer simplicity.
     You implement only what’s necessary for your app’s context — 
     not overcomplicating password policies or adding unnecessary external providers unless required.
 
-*. 🧱 Adding the User Entity
+🧱 Adding the User Entity
     In the Domain Project
         Create a User entity class that inherits from IdentityUser:
             using Microsoft.AspNetCore.Identity;
@@ -45,7 +45,7 @@
                 public string? Image { get; set; }
             }
 
-*. 🗃️ Configuring Persistence
+🗃️ Configuring Persistence
     In the Persistence Project
         *. Modify AppDbContext.cs:
             using Domain;
@@ -93,7 +93,7 @@
                     }
                 }
 
-*. 🧩 Configuring Identity in the API Project
+🧩 Configuring Identity in the API Project
     *. Program.cs
         using Microsoft.AspNetCore.Authorization;
         using Microsoft.AspNetCore.Identity;
@@ -137,17 +137,18 @@
         var services = scope.ServiceProvider;
         var context = services.GetRequiredService<AppDbContext>();
         var userManager = services.GetRequiredService<UserManager<User>>();
+        
         await context.Database.MigrateAsync();
         await DbInitializer.SeedData(context, userManager);
 
         app.Run();
 
-*. 🧾 Migrations
+🧾 Migrations
     Run the following commands to create and apply migrations:
         dotnet ef migrations add IdentityAdded -p Persistence -s API
         dotnet ef database update -p Persistence -s API
 
-*. 🧪 Testing Identity Endpoints
+🧪 Testing Identity Endpoints
     Identity API automatically exposes endpoints under /api via MapIdentityApi<User>().
     Examples:
         POST /api/register
@@ -158,7 +159,7 @@
         Add [Authorize] to any controller.
         Make requests with a valid JWT token returned from login.
 
-*. 👤 Creating Registration and Login
+👤 Creating Registration and Login
     *. DTO directory — RegisterDto.cs
         using System.ComponentModel.DataAnnotations;
 
@@ -230,6 +231,7 @@
 
                 return Ok(new
                 {
+                    user!.Id,
                     user!.DisplayName,
                     user.Email,
                     user.UserName,
@@ -245,7 +247,7 @@
             }
         }
 
-*. 📊 System Flow Summary
+📊 System Flow Summary
     Define User entity
     Configure DbContext with Identity support
     Add Identity services in Program.cs

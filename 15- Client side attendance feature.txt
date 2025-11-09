@@ -1,0 +1,604 @@
+📘 Implementing Attendance Feature in the Client App
+🎯 Learning Goals
+    *. Implement the attendance feature in the React client app
+    *. Update the UI to display attendees dynamically
+    *. Use optimistic updates to improve user experience
+    *. Apply reusable Material UI components and popovers for profile previews
+
+🧱 Step 1 – Updating Types and Queries
+    Files to Edit:
+        src/types/index.d.ts
+        src/hooks/useActivities.ts
+
+🪪 Step 2 – Updating the Activity Card
+    File: src/features/activities/ActivityCard.tsx
+    Purpose:
+        Display current attendees and highlight the host.
+           
+👤 Step 3 – Creating a Profile Card
+    File: src/features/profiles/ProfileCard.tsx
+    This component displays user information for each attendee.
+
+💬 Step 4 – Creating a Popover
+    File: src/shared/components/AvatarPopover.tsx
+    Used to show the ProfileCard when hovering over or clicking an attendee avatar.
+
+🧩 Step 5 – Updating the Details Components
+    Files:
+        ActivityDetailsHeader.tsx
+        ActivityDetailsInfo.tsx
+        ActivityDetailsSidebar.tsx
+    *. Actions:
+        *. Integrate updateAttendance query into header buttons
+        *. Display real-time attendee changes using React Query’s invalidateQueries() or optimistic update
+        *. Add <ScrollRestoration /> in App.tsx to ensure smooth navigation
+
+⚡ Step 6 – Adding the Attendance Query with Optimistic Update
+    *. Get the existing cached data
+    *. Update it locally before the API responds
+    *. Rollback if the request fails.
+        This provides instant feedback while waiting for the API response.
+    
+🎨 Step 7 – Button Improvements
+    File: src/shared/components/StyledButton.tsx
+    Use in ActivityDetailsHeader.tsx
+
+📘 Note on Spread Operator
+    🔹 The spread operator (...) copies all properties of an object (or elements of an array) into another.
+
+*. index.d.ts
+    type Activity = {
+        id: string
+        title: string
+        description: string
+        category: string
+        date: Date
+        city: string
+        venue: string
+        isCancelled: boolean
+        longitude: number
+        latitude: number
+        attendees: Profile[]
+        isGoing: boolean
+        isHost: boolean
+        hostId: string
+        hostDisplayName: string
+    }
+
+    type Profile = {
+        id: string
+        displayName: string
+        bio?: string
+        image?: string
+    }
+
+*. useActivities.ts
+    const { data: activities, isLoading } = useQuery({
+        queryKey: ['activities'],
+        queryFn: async () => {
+            const response = await agent.get<Activity[]>("/activities");
+            return response.data;
+        },
+        enabled: !id && location.pathname === '/activities' && !!currentUser,
+        select: data => {
+            return data.map(activity => {
+                return {
+                    ...activity,
+                    isHost: currentUser?.id === activity.hostId,
+                    isGoing: activity.attendees.some(x => x.id == currentUser?.id)
+                };
+            });
+        }
+    });
+
+    const { data: activity, isLoading: isLoadingActivity } = useQuery({
+        queryKey: ['activities', id],
+        queryFn: async () => {
+            const response = await agent.get<Activity>(`/activities/${id}`);
+            return response.data;
+        },
+        enabled: !!id && !!currentUser,
+        select: data => {
+            return {
+                ...data,
+                isHost: currentUser?.id === data.hostId,
+                isGoing: data.attendees.some(x => x.id == currentUser?.id)
+            }
+        }
+    });
+
+    const updateAttendance = useMutation({
+        mutationFn: async (id: string) => {
+            await agent.post(`/activities/${id}/attend`)
+        },
+        onMutate: async (activityId: string) => {
+            await queryClient.cancelQueries({
+                queryKey: ['activities',  activityId]
+            });
+
+            const prevActivity = queryClient.getQueryData<Activity>(['activities', activityId]);
+            queryClient.setQueryData<Activity>(['activites', activityId], oldActivity => {
+                if(!oldActivity || !currentUser)
+                {
+                    return oldActivity;
+                }
+
+                const isHost = oldActivity.hostId === currentUser.id
+                const isAttending = oldActivity.attendees.some(x => x.id === currentUser.id);
+
+                return {
+                    ...oldActivity,
+                    isCancelled: isHost ? !oldActivity.isCancelled : oldActivity.isCancelled,
+                    attendees: isAttending
+                        ? isHost 
+                            ? oldActivity.attendees
+                            : oldActivity.attendees.filter(x => x.id !== currentUser.id)
+                        : [...oldActivity.attendees, {
+                            id: currentUser.id,
+                            displayName: currentUser.displayName,
+                            image: currentUser.image
+                        }]
+                };
+            });
+
+            return {prevActivity};
+        },
+        onError: (error, activityId, context) => {
+            error;
+            if(context?.prevActivity)
+            {
+                queryClient.setQueryData(['activities', activityId], context.prevActivity);
+            }
+        }
+    });
+
+*. ActivityCard.tsx
+    import { AccessTime, Place } from "@mui/icons-material";
+    import { Avatar, Box, Button, Card, CardContent, CardHeader, Chip, Divider, Typography } from "@mui/material"
+    import { Link } from "react-router";
+    import { formatDate } from "../../../lib/util/util";
+    import AvatarPopover from "../../../app/shared/components/AvatarPopover";
+
+    type Props = {
+        activity: Activity;
+    }
+
+    export default function ActivityCard({ activity }: Props) {
+        const label = activity.isHost ? "You are hosting" : "You are going";
+        const color = activity.isHost ? 'secondary' : activity.isGoing ? 'warning' : 'default';
+
+        return (
+            <Card
+                elevation={3}
+                sx={{ borderRadius: 3 }}
+            >
+                <Box
+                    display='flex'
+                    alignItems='center'
+                    justifyContent='space-between'
+                >
+                    <CardHeader
+                        avatar={
+                            <Avatar sx={{
+                                width: 80,
+                                height: 80
+                            }}
+                            />
+                        }
+                        title={
+                            <Typography variant="h6" sx={{ fontSize: 20, fontWeight: 'bold' }}>
+                                {activity.title}
+                            </Typography>
+                        }
+                        subheader={
+                            <>
+                                Hosted by {''}
+                                <Link to={`/profiles/${activity.hostId}`}>
+                                    {activity.hostDisplayName}
+                                </Link>
+                            </>
+                        }
+                    />
+                    <Box
+                        display='flex'
+                        flexDirection='column'
+                        gap={2}
+                        mr={2}
+                    >
+                        {(activity.isHost || activity.isGoing) &&
+                            <Chip
+                                label={label}
+                                color={color}
+                                sx={{ borderRadius: 2 }}
+                            />
+                        }
+
+                        {activity.isCancelled &&
+                            <Chip
+                                variant="outlined"
+                                label='Cancelled'
+                                color="error"
+                                sx={{ borderRadius: 2 }}
+                            />
+                        }
+                    </Box>
+                </Box>
+                
+                <Divider sx={{ mb: 3 }} />
+
+                <CardContent sx={{ p: 0 }}>
+                    <Box
+                        display='flex'
+                        alignItems='center'
+                        mb={2}
+                        px={2}
+                    >
+                        <Box display='flex' flexGrow={0} alignItems='center'>
+                            <AccessTime sx={{ mr: 1 }} />
+                            <Typography variant="body2" noWrap>
+                                {formatDate(activity.date)}
+                            </Typography>
+                        </Box>
+                        <Place sx={{
+                            ml: 3,
+                            mr: 2
+                        }} />
+                        <Typography variant="body2">{activity.venue}</Typography>
+                    </Box>
+                    <Divider />
+                    <Box
+                        display='flex'
+                        gap={2}
+                        sx={{
+                            backgroundColor: 'grey.200',
+                            py: 3,
+                            pl: 3
+                        }}
+                    >
+                        {activity.attendees.map(att => (<AvatarPopover profile={att} key={att.id} />))}
+                    </Box>
+                </CardContent>
+
+                <CardContent sx={{ pb: 2 }}>
+                    <Typography variant="body2">{activity.description}</Typography>
+                    <Button
+                        component={Link}
+                        to={`/activities/${activity.id}`}
+                        size="medium"
+                        variant="contained"
+                        sx={{
+                            display: 'flex',
+                            justifySelf: 'self-end',
+                            borderRadius: 3
+                        }}
+                    >
+                        View
+                    </Button>
+                </CardContent>
+            </Card>
+        )
+    }
+
+*. ProfileCard.tsx
+    import { Person } from "@mui/icons-material";
+    import { Link, Card, CardMedia, CardContent, Box, Typography, Chip, Divider } from "@mui/material";
+
+    type Props = {
+        profile: Profile
+    }
+
+    export default function ProfileCard({ profile }: Props) {
+        const following = false;
+
+        return (
+            <Link>
+                <Card
+                    elevation={4}
+                    sx={{
+                        borderRadius: 3,
+                        p: 3,
+                        maxWidth: 300,
+                        textDecoration: 'none'
+                    }}
+                >
+                    <CardMedia
+                        component='img'
+                        src={profile?.image || 'images/user.png'}
+                        sx={{
+                            width: 200,
+                            zIndex: 50
+                        }}
+                        alt={profile.displayName + 'image'}
+                    />
+
+                    <CardContent>
+                        <Box display='flex' alignItems='center' gap={1}>
+                            <Typography variant="h5">
+                                {profile.displayName}
+                            </Typography>
+                            {following && <Chip size="small" label='Following' color="secondary" variant="outlined" />}
+                        </Box>
+                    </CardContent>
+                    <Divider sx={{ mb: 2 }} />
+                    <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center', 
+                        justifyContent: 'start'
+                    }}>
+                        <Person />
+                        <Typography sx={{ml: 1}}> 20 Followers</Typography>
+                    </Box>
+                </Card>
+            </Link>
+        )
+    }
+
+*. AvatarPopover.tsx
+    import { Avatar } from '@mui/material';
+    import Popover from '@mui/material/Popover';
+    import { useState } from 'react';
+    import { Link } from 'react-router';
+    import ProfileCard from '../../../features/profiles/ProfileCard';
+
+    type Props = {
+        profile: Profile
+    }
+
+    export default function AvatarPopover({ profile }: Props) {
+        const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+        const handlePopoverOpen = (event: React.MouseEvent<HTMLElement>) => {
+            setAnchorEl(event.currentTarget);
+        };
+
+        const handlePopoverClose = () => {
+            setAnchorEl(null);
+        };
+
+        const open = Boolean(anchorEl);
+
+        return (
+            <div>
+                <Avatar
+                    key={profile.id}
+                    alt={profile.displayName + 'image'}
+                    src={profile.image}
+                    component={Link}
+                    to={`/profiles/${profile.id}`}
+                    onMouseEnter={handlePopoverOpen}
+                    onMouseLeave={handlePopoverClose}
+                />
+                <Popover
+                    id="mouse-over-popover"
+                    sx={{ pointerEvents: 'none' }}
+                    open={open}
+                    anchorEl={anchorEl}
+                    anchorOrigin={{
+                        vertical: 'bottom',
+                        horizontal: 'left',
+                    }}
+                    transformOrigin={{
+                        vertical: 'top',
+                        horizontal: 'left',
+                    }}
+                    onClose={handlePopoverClose}
+                    disableRestoreFocus
+                >
+                    <ProfileCard profile={profile} />
+                </Popover>
+            </div>
+        );
+    }
+
+*. ActivityDetailsHeader.tsx
+    import { Card, CardMedia, Box, Typography, Chip } from "@mui/material";
+    import { Link } from "react-router";
+    import { formatDate } from "../../../lib/util/util";
+    import { useActivities } from "../../../lib/hooks/useActivities";
+    import StyledButton from "../../../app/shared/components/StyledButton";
+
+    type Props = {
+    activity: Activity
+    }
+
+    export default function ActivityDetailsHeader({ activity }: Props) {
+    const { updateAttendance } = useActivities(activity.id);
+
+    return (
+        <Card sx={{
+        position: 'relative',
+        mb: 2,
+        backgroundColor: 'transparent',
+        overflow: 'hidden'
+        }}>
+        {activity.isCancelled && (
+            <Chip
+            sx={{
+                position: 'absolute', 
+                left: 40, 
+                top: 20, 
+                zIndex: 1000, 
+                borderRadius: 1
+            }}
+            color="error"
+            label="Cancelled"
+            />
+        )}
+        <CardMedia
+            component="img"
+            height="300"
+            image={`/images/categoryImages/${activity.category}.jpg`}
+            alt={`${activity.category} image`}
+        />
+        <Box sx={{
+            position: 'absolute',
+            bottom: 0,
+            width: '100%',
+            color: 'white',
+            padding: 2,
+            display: 'flex',
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'flex-end',
+            background: 'linear-gradient(to top, rgba(0, 0, 0, 1.0), transparent)',
+            boxSizing: 'border-box',
+        }}>
+            <Box>
+            <Typography
+                variant="h4"
+                sx={{ fontWeight: 'bold' }}
+            >
+                {activity.title}
+            </Typography>
+            <Typography variant="subtitle1">
+                {formatDate(activity.date)}
+            </Typography>
+            <Typography variant="subtitle2">
+                Hosted by
+                <Link to={`/profiles/${activity.hostId}`}
+                style={{ color: 'white', fontWeight: 'bold' }}>
+                {activity.hostDisplayName}
+                </Link>
+            </Typography>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 2 }}>
+            {activity.isHost ? (
+                <>
+                <StyledButton
+                    variant='contained'
+                    color={activity.isCancelled ? 'success' : 'error'}
+                    onClick={() => updateAttendance.mutate(activity.id)}
+                    disabled={updateAttendance.isPending}
+                >
+                    {activity.isCancelled ? 'Re-activate Activity' : 'Cancel Activity'}
+                </StyledButton>
+                <StyledButton
+                    variant="contained"
+                    color="primary"
+                    component={Link}
+                    to={`/manage/${activity.id}`}
+                    disabled={activity.isCancelled}
+                >
+                    Manage Event
+                </StyledButton>
+                </>
+            ) : (
+                <StyledButton
+                variant="contained"
+                color={activity.isGoing ? 'primary' : 'info'}
+                onClick={() => updateAttendance.mutate(activity.id)}
+                disabled={updateAttendance.isPending || activity.isCancelled}
+                >
+                {activity.isGoing ? 'Cancel Attendance' : 'Join Activity'}
+                </StyledButton>
+            )}
+            </Box>
+        </Box>
+        </Card>
+    )
+    }
+
+*. ActivityDetailsInfo.tsx
+    <Button
+        onClick={() => setMapOpen(!mapOpen)}
+        sx={{
+          whiteSpace: 'nowrap',
+          mx: 2
+        }}
+    >
+
+*. ActivityDetailsSidebar
+    import { Paper, Typography, List, ListItem, Chip, ListItemAvatar, Avatar, ListItemText, Grid } from "@mui/material";
+
+    type Props = {
+        activity: Activity
+    }
+
+    export default function ActivityDetailsSidebar({ activity }: Props) {
+        const following = true;
+
+        return (
+            <>
+                <Paper
+                    sx={{
+                        textAlign: 'center',
+                        border: 'none',
+                        backgroundColor: 'primary.main',
+                        color: 'white',
+                        p: 2,
+                    }}
+                >
+                    <Typography variant="h6">
+                        {activity.attendees.length} people going
+                    </Typography>
+                </Paper>
+
+                <Paper sx={{ padding: 2 }}>
+                    {activity.attendees.map(attendee => (
+                        <Grid key={attendee.id} container alignItems="center">
+                            <Grid size={8}>
+                                <List sx={{ display: 'flex', flexDirection: 'column' }}>
+                                    <ListItem>
+                                        <ListItemAvatar>
+                                            <Avatar
+                                                alt={attendee.displayName + 'image'}
+                                                src={attendee.image}
+                                                variant="rounded"
+                                                sx={{
+                                                    mr: 3,
+                                                    width: 75,
+                                                    height: 75
+                                                }}
+                                            />
+                                        </ListItemAvatar>
+                                        <ListItemText>
+                                            <Typography variant="h6">
+                                                {attendee.displayName}
+                                                {following && (
+                                                    <Typography variant="body2" color="orange">
+                                                        Following
+                                                    </Typography>
+                                                )}
+                                            </Typography>
+                                        </ListItemText>
+                                    </ListItem>
+                                </List>
+                            </Grid>
+                            <Grid size={4} sx={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'flex-end',
+                                gap: 1
+                            }}>
+                                {activity.hostId === attendee.id && (
+                                    <Chip
+                                        label="Host"
+                                        color="warning"
+                                        variant='filled'
+                                        sx={{ borderRadius: 2 }}
+                                    />
+                                )}
+                            </Grid>
+                        </Grid>
+                    ))}
+
+                </Paper>
+            </>
+        );
+    }
+
+*. StyledButton.tsx
+    import { Button, styled, type ButtonProps } from "@mui/material";
+    import type { LinkProps } from "react-router";
+
+    type StyledButtonProps = ButtonProps & Partial<LinkProps>
+
+    const StyledButton = styled(Button)<StyledButtonProps>(({theme}) => ({
+        '&.Mui-disabled': {
+            backgroundColor: theme.palette.grey[600],
+            color: theme.palette.text.disabled
+        }
+    }))
+
+    export default StyledButton;
