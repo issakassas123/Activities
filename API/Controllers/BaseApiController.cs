@@ -19,7 +19,7 @@ public class BaseApiController : ControllerBase
         {
             return NotFound();
         }
-        
+
         if (result.IsSuccess && result.Value is not null)
         {
             return Ok(result.Value);

@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Application.interfaces;
 using Infrastructure.Security;
+using Infrastructure.Photos;
+using Application.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +38,9 @@ builder.Services.AddMediatR(config =>
 });
 
 builder.Services.AddScoped<IUserAccessor, UserAccessor>();
+builder.Services.AddScoped<IPhotoService, PhotoService>();
+builder.Services.AddScoped<TokenService>();
+
 builder.Services.AddAutoMapper(cfg =>
 {
 }, typeof(MappingProfiles));
@@ -58,8 +63,10 @@ builder.Services.AddAuthorizationBuilder()
     policy.Requirements.Add(new IsHostRequirement());
 });
 
-builder.Services.AddScoped<TokenService>();
 builder.Services.AddTransient<IAuthorizationHandler, IsHostRequirementHandler>();
+
+builder.Services.Configure<CloudinarySettings>(builder.Configuration
+    .GetSection("CloudinarySettings"));
 
 builder.Services.AddLogging();
 

@@ -1,0 +1,481 @@
+📸 Photo Upload and Management with Cloudinary
+🎯 Learning Goals
+    *. Understand and implement photo storage options.
+    *. Add a photo upload service to the application.
+    *. Integrate and use the Cloudinary API for image hosting and management.
+     
+☁️ Photo Storage Options
+    Storage Option	            Pros	                            Cons
+    Database	            Simple authentication	            Inefficient for large files, consumes database disk space
+    File System	            Good for local storage	            Disk space and permission management issues
+    Cloud Service	        Scalable, secure (via API keys)	    Potentially higher cost
+    ✅ Chosen Option: Cloud service — specifically Cloudinary, for scalability, API-based access, and developer support.
+
+🔧 Adding Cloudinary
+    *. Installation
+        Install Cloudinary SDK:
+            dotnet add package CloudinaryDotNet
+    *. Create a Free Account
+        Go to https://cloudinary.com/
+    *. After registration, obtain your:
+        Cloud Name
+        API Key
+        API Secret
+    *. Add Credentials to appsettings.json
+        "CloudinarySettings": {
+            "CloudName": "your-cloud-name",
+            "ApiKey": "your-api-key",
+            "ApiSecret": "your-api-secret"
+        }
+
+    *. Configure Cloudinary in Program.cs
+        builder.Services.Configure<CloudinarySettings>(
+            builder.Configuration.GetSection("CloudinarySettings")
+        );
+        builder.Services.AddScoped<IPhotoService, PhotoService>();
+    
+    *. Update Application.csproj
+        <ItemGroup>
+            <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        </ItemGroup>
+    
+🧩 Adding the Image Service
+    Project Structure
+        Application/
+        ├── Interfaces/
+        │   └── IPhotoService.cs
+        ├── Profiles/
+        │   └── DTOs/
+        │       └── PhotoUploadResult.cs
+        
+        Infrastructure
+        ├── Photos/
+        │   ├── CloudinarySettings.cs
+        │   ├── PhotoService.cs
+
+    Key Components
+        CloudinarySettings.cs
+            namespace Infrastructure.Photos;
+
+            public class CloudinarySettings
+            {
+                public required string? CloudName { get; set; }
+                public required string? ApiKey { get; set; }
+                public required string? ApiSecret { get; set; }
+            }
+
+        Holds configuration details (CloudName, ApiKey, ApiSecret).
+
+    IPhotoService.cs
+        using Application.Profiles.DTOs;
+        using Microsoft.AspNetCore.Http;
+
+        namespace Application.Interfaces;
+
+        public interface IPhotoService
+        {
+            Task<PhotoUploadResult?> UploadPhoto(IFormFile file);
+            Task<string> DeletePhoto(string publicId);
+        }
+
+    PhotoUploadResult.cs
+        namespace Application.Profiles.DTOs;
+
+        public class PhotoUploadResult
+        {
+            public required string PublicId { get; set; }
+            public required string Url { get; set; }
+        }
+
+    PhotoService.cs
+        using Application.Interfaces;
+        using Application.Profiles.DTOs;
+        using CloudinaryDotNet;
+        using CloudinaryDotNet.Actions;
+        using Microsoft.AspNetCore.Http;
+        using Microsoft.Extensions.Options;
+
+        namespace Infrastructure.Photos;
+
+        public class PhotoService : IPhotoService
+        {
+            private readonly Cloudinary _cloudinary;
+
+            public PhotoService(IOptions<CloudinarySettings> config)
+            {
+                var account = new Account(
+                    config.Value.CloudName,
+                    config.Value.ApiKey,
+                    config.Value.ApiSecret
+                );
+
+                _cloudinary = new Cloudinary(account);
+            }
+
+            public async Task<string> DeletePhoto(string publicId)
+            {
+                var deleteParams = new DeletionParams(publicId);
+                var result = await _cloudinary.DestroyAsync(deleteParams);
+                if (result.Error is not null)
+                {
+                    throw new Exception(result.Error.Message);
+                }
+
+                return result.Result;
+            }
+
+            public async Task<PhotoUploadResult?> UploadPhoto(IFormFile file)
+            {
+                if (file.Length > 0)
+                {
+                    await using var stream = file.OpenReadStream();
+
+                    var uploadParams = new ImageUploadParams
+                    {
+                        File = new FileDescription(file.FileName, stream),
+                        //Transformation = new Transformation().Height(500).Width(500).Crop("fill"),
+                        Folder = "Activities2025",
+                    };
+
+                    var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+                    if (uploadResult.Error is not null)
+                    {
+                        throw new Exception(uploadResult.Error.Message);
+                    }
+
+                    return new PhotoUploadResult
+                    {
+                        PublicId = uploadResult.PublicId,
+                        Url = uploadResult.SecureUrl.AbsoluteUri
+                    };
+                }
+
+                return null;
+            }
+        }
+
+🧱 Creating the Photo Entity
+    *. Define Photo.cs
+        namespace Domain;
+
+        public class Photo
+        {
+            public string Id { get; set; } = Guid.NewGuid().ToString();
+            public string Url { get; set; }
+            public string PublicId { get; set; }
+
+            // nav properties
+            public string UserId { get; set; }
+
+            public User User { get; set; } = null!;
+        }
+    
+    *. Update IUserAccessor.cs
+        Implement in UserAccessor.cs to include photo collection.
+        Task<User> GetUserWithPhotosAsync();
+
+    *. UserAccessor.cs
+        public async Task<User> GetUserWithPhotosAsync()
+        {
+            var userId = GetUserId();
+
+            return await dbContext.Users
+                .Include(x => x.Photos)
+                .FirstOrDefaultAsync(x => x.Id == userId)
+                ?? throw new UnauthorizedAccessException("No user is logged in");
+        }
+        
+    *. Update User.cs
+        public ICollection<Photo> Photos { get; set; } = new List<Photo>();
+
+    *. Update AppDbContext
+        public DbSet<Photo> Photos { get; set; }
+
+    *. Run Migration
+        dotnet ef migrations add PhotoEntityAdded -p Persistence -s API
+        dotnet ef database update -p Persistence -s API
+
+⚙️ Creating Handlers & Controllers
+    🔍 Query and Command Implementations
+    Action	                File	                                    Description
+    Add photo               Profiles/Commands/AddPhoto.cs               Add to Cloudinary and database
+    Get list of photos	    Profiles/Queries/GetProfilePhotos.cs	    Retrieve user’s Cloudinary photos
+    Delete photo	        Profiles/Commands/DeletePhoto.cs	        Remove from Cloudinary and database
+    Set main photo	        Profiles/Commands/SetMainPhoto.cs	        Updates IsMain field
+    Get user profile	    Profiles/Queries/GetProfile.cs	            Returns user profile with photos
+    Map entities	        MappingProfiles.cs	                        CreateMap<User, UserProfile>();
+
+
+    *. AddPhoto.cs
+        using Application.Core;
+        using Application.interfaces;
+        using Application.Interfaces;
+        using Domain;
+        using MediatR;
+        using Microsoft.AspNetCore.Http;
+        using Persistence;
+
+        namespace Application.Profiles.Commands;
+
+        public static class AddPhoto
+        {
+            public class Command : IRequest<Result<Photo>>
+            {
+                public IFormFile File { get; set; }
+            }
+
+            public class Handler(IUserAccessor userAccessor, AppDbContext context, IPhotoService photoService)
+            : IRequestHandler<Command, Result<Photo>>
+            {
+                public async Task<Result<Photo>> Handle(Command request, CancellationToken cancellationToken)
+                {
+                    var uploadResult = await photoService.UploadPhoto(request.File);
+                    if (uploadResult is null)
+                    {
+                        return Result<Photo>.Failure("Failed to upload photo", 400);
+                    }
+
+                    var user = await userAccessor.GetUserAsync();
+                    var photo = new Photo
+                    {
+                        Url = uploadResult.Url,
+                        PublicId = uploadResult.PublicId,
+                        UserId = user.Id
+                    };
+
+                    user.Image ??= photo.Url;
+                    context.Photos.Add(photo);
+
+                    var result = await context.SaveChangesAsync(cancellationToken) > 0;
+                    return result
+                        ? Result<Photo>.Success(photo)
+                        : Result<Photo>.Failure("Problem saving photo to DB", 400);
+                }
+            }
+        }
+    
+    *. DeletePhoto.cs
+        using Application.Core;
+        using Application.interfaces;
+        using Application.Interfaces;
+        using MediatR;
+        using Persistence;
+
+        namespace Application.Profiles.Commands;
+
+        public static class DeletePhoto
+        {
+            public class Command : IRequest<Result<Unit>>
+            {
+                public string PhotoId { get; set; }
+            }
+
+            public class Handler(AppDbContext context, IUserAccessor userAccessor, IPhotoService photoService)
+                : IRequestHandler<Command, Result<Unit>>
+            {
+                public async Task<Result<Unit>> Handle(Command request, CancellationToken cancellationToken)
+                {
+                    var user = await userAccessor.GetUserWithPhotosAsync();
+                    var photo = user.Photos.FirstOrDefault(x => x.Id == request.PhotoId);
+                    if (photo is null)
+                    {
+                        return Result<Unit>.Failure("Cannot find photo", 400);
+                    }
+
+                    if (photo.Url == user.Image)
+                    {
+                        return Result<Unit>.Failure("Cannot delete main photo", 400);
+                    }
+
+                    await photoService.DeletePhoto(photo.PublicId);
+
+                    user.Photos.Remove(photo);
+
+                    var result = await context.SaveChangesAsync(cancellationToken) > 0;
+                    return result
+                        ? Result<Unit>.Success(Unit.Value)
+                        : Result<Unit>.Failure("Problem deleting photo", 400);
+                }
+            }
+        }
+
+    *. SetMainPhoto.cs
+        using Application.Core;
+        using Application.interfaces;
+        using Application.Interfaces;
+        using MediatR;
+        using Persistence;
+
+        namespace Application.Profiles.Commands;
+
+        public static class DeletePhoto
+        {
+            public class Command : IRequest<Result<Unit>>
+            {
+                public string PhotoId { get; set; }
+            }
+
+            public class Handler(AppDbContext context, IUserAccessor userAccessor, IPhotoService photoService)
+                : IRequestHandler<Command, Result<Unit>>
+            {
+                public async Task<Result<Unit>> Handle(Command request, CancellationToken cancellationToken)
+                {
+                    var user = await userAccessor.GetUserWithPhotosAsync();
+                    var photo = user.Photos.FirstOrDefault(x => x.Id == request.PhotoId);
+                    if (photo is null)
+                    {
+                        return Result<Unit>.Failure("Cannot find photo", 400);
+                    }
+
+                    if (photo.Url == user.Image)
+                    {
+                        return Result<Unit>.Failure("Cannot delete main photo", 400);
+                    }
+
+                    await photoService.DeletePhoto(photo.PublicId);
+
+                    user.Photos.Remove(photo);
+
+                    var result = await context.SaveChangesAsync(cancellationToken) > 0;
+                    return result
+                        ? Result<Unit>.Success(Unit.Value)
+                        : Result<Unit>.Failure("Problem deleting photo", 400);
+                }
+            }
+        }
+    
+    *. GetProfilePhotos.cs
+        using Application.Core;
+        using Domain;
+        using MediatR;
+        using Microsoft.EntityFrameworkCore;
+        using Persistence;
+
+        namespace Application.Profiles.Queries;
+
+        public static class GetProfilePhotos
+        {
+            public class Query : IRequest<Result<List<Photo>>>
+            {
+                public string UserId { get; set; }
+            }
+
+            public class Handler(AppDbContext context) : IRequestHandler<Query, Result<List<Photo>>>
+            {
+                public async Task<Result<List<Photo>>> Handle(Query request, CancellationToken cancellationToken)
+                {
+                    var photos = await context.Users
+                        .Where(x => x.Id == request.UserId)
+                        .SelectMany(x => x.Photos)
+                        .ToListAsync(cancellationToken);
+
+                    return Result<List<Photo>>.Success(photos);
+                }
+            }
+        }
+
+    *. GetProfile.cs
+        using Application.Core;
+        using Application.Profiles.DTOs;
+        using AutoMapper;
+        using AutoMapper.QueryableExtensions;
+        using MediatR;
+        using Microsoft.EntityFrameworkCore;
+        using Persistence;
+
+        namespace Application.Profiles.Queries;
+
+        public static class GetProfile
+        {
+            public class Query : IRequest<Result<UserProfile>>
+            {
+                public string UserId { get; set; }
+            }
+
+            public class Handler(AppDbContext context, IMapper mapper) : IRequestHandler<Query, Result<UserProfile>>
+            {
+                public async Task<Result<UserProfile>> Handle(Query request, CancellationToken cancellationToken)
+                {
+                    var profile = await context.Users
+                        .ProjectTo<UserProfile>(mapper.ConfigurationProvider)
+                        .SingleOrDefaultAsync(x => x.Id == request.UserId, cancellationToken);
+
+                    return profile is null
+                        ? Result<UserProfile>.Failure("Profile not found", 404)
+                        : Result<UserProfile>.Success(profile);
+                }
+            }
+        }
+
+⚙️ Creating Controllers
+    *. Profiles Controller
+        File: Controllers/ProfilesController.cs
+        Expose endpoints for:
+            Uploading photos
+            Listing photos
+            Deleting photos
+            Setting main photo
+    
+    *. ProfilesController.cs
+        using Application.Profiles.Commands;
+        using Application.Profiles.DTOs;
+        using Application.Profiles.Queries;
+        using Domain;
+        using Microsoft.AspNetCore.Mvc;
+
+        namespace API.Controllers;
+
+        public class ProfilesController : BaseApiController
+        {
+            [HttpPost("add-photo")]
+            [Consumes("multipart/form-data")]
+            public async Task<ActionResult<Photo>> AddPhoto([FromForm] IFormFile file)
+            {
+                return HandleResult(await Mediator.Send(new AddPhoto.Command
+                {
+                    File = file
+                }));
+            }
+
+            [HttpGet("{userId}/photos")]
+            public async Task<ActionResult<List<Photo>>> GetPhotosForUser(string userId)
+            {
+                return HandleResult(await Mediator.Send(new GetProfilePhotos.Query
+                {
+                    UserId = userId
+                }));
+            }
+
+            [HttpDelete("{photoId}/photos")]
+            public async Task<ActionResult> DeletePhoto(string photoId)
+            {
+                return HandleResult(await Mediator.Send(new DeletePhoto.Command
+                {
+                    PhotoId = photoId
+                }));
+            }
+
+            [HttpPut("{photoId}/setMain")]
+            public async Task<ActionResult> SetMainPhoto(string photoId)
+            {
+                return HandleResult(await Mediator.Send(new SetMainPhoto.Command
+                {
+                    PhotoId = photoId
+                }));
+            }
+
+            [HttpGet("{userId}")]
+            public async Task<ActionResult<UserProfile>> GetProfile(string userId)
+            {
+                return HandleResult(await Mediator.Send(new GetProfile.Query
+                {
+                    UserId = userId
+                }));
+            }
+        }
+
+
+🧠 Notes
+    *. Cloudinary credentials should never be hardcoded — use environment variables or configuration.
+    *. Apply proper file validation (e.g., file type, size limit) before uploading.
+    *. Implement error handling in PhotoService for failed uploads/deletions.
