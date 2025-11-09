@@ -58,6 +58,7 @@ builder.Services.AddAuthorizationBuilder()
     policy.Requirements.Add(new IsHostRequirement());
 });
 
+builder.Services.AddScoped<TokenService>();
 builder.Services.AddTransient<IAuthorizationHandler, IsHostRequirementHandler>();
 
 builder.Services.AddLogging();

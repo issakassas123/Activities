@@ -93,7 +93,22 @@
                     }
                 }
 
+🧩 Json Web Tokens JWT
+    *. Documentation:
+        https://www.jwt.io/
+    *. Authenticating to the server with JWT
+        *. Get: api/activities
+            Header: Authentication <JWT>
+        *. Server validates token
+            if ok response + data
+            if not ok return 401
+        *. Response: 200 + data
+
 🧩 Configuring Identity in the API Project
+    *. Installation:
+        System.IdentityModel.Tokens.Jwt @Microsoft
+
+    *. Create Services/TokenService.cs
     *. Program.cs
         using Microsoft.AspNetCore.Authorization;
         using Microsoft.AspNetCore.Identity;
@@ -117,6 +132,7 @@
         .AddRoles<IdentityRole>()
         .AddEntityFrameworkStores<AppDbContext>();
 
+        builder.Services.AddScoped<TokenService>();
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(policy =>
                 policy.AllowAnyHeader()
@@ -246,10 +262,10 @@
                 return NoContent();
             }
         }
-
 📊 System Flow Summary
     Define User entity
     Configure DbContext with Identity support
+    JWT tokens
     Add Identity services in Program.cs
     Seed initial users
     Run migrations
