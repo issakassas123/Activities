@@ -10,7 +10,7 @@
         📘 Visit: https://react-hook-form.com
     *. 🔹 Installation
         npm install react-hook-form
-        npm install @hookform/resolvers zod`
+        npm install @hookform/resolvers zod
 
 *. 📁 Folder Structure
     src/

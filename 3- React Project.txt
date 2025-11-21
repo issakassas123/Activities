@@ -1,38 +1,41 @@
-*. The goals of this section are to become familiar with the following:
-    *. Vite
-    *. React project files and structure
-    *. Core React concepts
-    *. React DevTools for debugging
-    *. TypeScript integration
-    *. Axios for HTTP requests
-    *. Material UI for component styling
+🚀 React + TypeScript Project Setup with Vite
+🎯 Learning Goals
+    *. Understand Vite as a modern React build tool.
+    *. Explore React project structure and core concepts.
+    *. Use React DevTools for debugging.
+    *. Integrate TypeScript for strong typing.
+    *. Make HTTP requests with Axios.
+    *. Style components using Material UI (MUI).
+    *. Configure CORS and HTTPS for secure API communication.
 
-*. Creating the React Project Using Vite
-    Vite is a modern build tool that allows fast start-up and hot-reload for React applications.
-    🔗 https://vite.dev
+🛠️ Creating the React Project Using Vite
+    *. What is Vite?
+        Vite is a next-generation build tool that enables lightning-fast development and hot module reloading.
+        🔗 https://vite.dev
 
     *. Project Setup
-        *. Navigate to the Activities directory.
-        *. Create a Vite React project:
+        *. Navigate to your Activities directory.
+        *. Create a new React project with TypeScript support:
             npm create vite@latest
             Project name: Client
             Framework: React
-            Variant: TypeScript + SWC (Speedy Web Compiler)
+            Variant: TypeScript + SWC
             Use rollup-vite (Experimental)? Yes
-        *. Navigate to the project folder and install dependencies:
+
+        *. Navigate into your project folder and install dependencies:
             cd Client
             npm install
 
-        *. Run the project
+        *. Run the project:
             npm run dev
 
-    *. VS Code Configuration
-        Recommended Extensions
-            ES7+ React/Redux/React-Native/JS – Code snippets for React.
-            ESLint – Linting and code quality checks.
+⚙️ Configuring VS Code
+    Recommended Extensions
+        *. ES7+ React/Redux/React-Native/JS – Code snippets for React.
+        *. ESLint – Linting and code quality checks.
 
-    *. Changing the Development Port
-        Update vite.config.ts to change the default server port:
+🌐 Changing the Development Port
+    Edit vite.config.ts:
         export default defineConfig({
             server:{
                 port: 3001
@@ -40,106 +43,105 @@
             plugins: [react()],
         })
 
-    *. React Project Structure
-        *. src/main.tsx
-            import { createRoot } from "react-dom/client";
-            import { StrictMode } from "react";
-            import App from "./App";
+🧱 React Project Structure
+    *. src/main.tsx
+        import { createRoot } from "react-dom/client";
+        import { StrictMode } from "react";
+        import App from "./App";
 
-            createRoot(document.getElementById('root')!).render(
+        createRoot(document.getElementById("root")!).render(
             <StrictMode>
                 <App />
             </StrictMode>
-            );
+        );
 
-        . App.tsx
-            function App()
-            {
-                return (
-                    <h3>Activities</h3>
-                );
-            }
-
-            export default App;
-
-    *. Fetching Data from the API Using React Hooks
-        import { useEffect, useState } from "react";
-
-        function App()
-        {
-            const title = 'Welcome to Activities';
-            const [activities, setActivities] = useState<>([]);
-
-            useEffect(() => {
-                fetch("https://localhost:7026/api/activities")
-                .then(response => response.json())
-                .then(data => setActivities(data))
-                return () => {}
-            }, []);
-            return (
-                <div>
-                    <h3 className="app" style=({color: 'red'})>{title}</h3>
-                    <ul>
-                    {activities.map(
-                        (activity) => (
-                            <li key={activity.id}>{activity.title}</li>
-                        )
-                    )}
-                    </ul>
-                </div>
-            );
+    *. src/App.tsx
+        function App() {
+            return <h3>Activities</h3>;
         }
+        
+        export default App;
 
-    *. Configuring CORS on the API
-        *. Update Program.cs in the API project:
-            builder.Services.AddCors();
-            app.UseCors(options =>
-                options.AllowAnyHeader()
+🔄 Fetching Data from the API Using React Hooks
+    import { useEffect, useState } from "react";
+
+    function App() {
+        const title = "Welcome to Activities";
+        const [activities, setActivities] = useState<any[]>([]);
+
+        useEffect(() => {
+            fetch("https://localhost:7026/api/activities")
+            .then((response) => response.json())
+            .then((data) => setActivities(data));
+        }, []);
+
+        return (
+            <div>
+            <h3 style={{ color: "red" }}>{title}</h3>
+            <ul>
+                {activities.map((activity) => (
+                <li key={activity.id}>{activity.title}</li>
+                ))}
+            </ul>
+            </div>
+        );
+    }
+
+    export default App;
+
+🔐 Configuring CORS in the API
+    *. In your ASP.NET Core API Program.cs:
+        builder.Services.AddCors();
+        app.UseCors(options =>
+            options.AllowAnyHeader()
                 .AllowAnyMethod()
                 .WithOrigins("http://localhost:3000", "https://localhost:3001")
-            );
+        );
 
-    *. Creating TypeScript Models
-        *. Create a lib/types directory inside src.
-            *. Transform JSON objects into TypeScript models:
-                https://transform.tools
-            *. src/lib/types/index.d.ts
-                interface Activity { or type Activity =
-                    id: string
-                    title: string
-                    description: string
-                    category: string
-                    date: string
-                    city: string
-                    venue: string
-                    isCancelled: boolean
-                    longitude: number
-                    latitude: number
-                }
-            *. Update App.tsx state to use the TypeScript model:
-                const [activites, setActivities] = useState<Activity[]>([]);
+📘 Creating TypeScript Models
+    Create a directory:
+        src/lib/types/index.d.ts
+        export interface Activity {
+            id: string;
+            title: string;
+            description: string;
+            category: string;
+            date: string;
+            city: string;
+            venue: string;
+            isCancelled: boolean;
+            longitude: number;
+            latitude: number;
+        }
 
-    *. React DevTools
-        Install the React DevTools Chrome extension.
+    Update your state:
+        const [activities, setActivities] = useState<Activity[]>([]);
+
+    You can easily convert JSON to TypeScript using
+        🔗 https://transform.tools
+
+🧩 React DevTools
+    Install React Developer Tools in Chrome:
         Pin the toolbar for quick access.
         Inspect Components and Profiler while running the app.
     
-    *. Adding Material UI
+🎨 Adding Material UI
+    *. Documentation
         https://mui.com
-        *. Install packages:
-            npm install @mui/material @emotion/react @emotion/styled
-            npm install @fontsource/roboto
-            npm install @mui/icons-material
-        *. Import fonts in main.tsx:
-            import '@fontsource/roboto/300.css';
-            import '@fontsource/roboto/400.css';
-            import '@fontsource/roboto/500.css';
-            import '@fontsource/roboto/700.css';
+    *. Installation
+        npm install @mui/material @emotion/react @emotion/styled
+        npm install @fontsource/roboto
+        npm install @mui/icons-material
+    *. Import Fonts in main.tsx:
+        import '@fontsource/roboto/300.css';
+        import '@fontsource/roboto/400.css';
+        import '@fontsource/roboto/500.css';
+        import '@fontsource/roboto/700.css';
   
-        *. Update App.tsx to use Material UI components:
-            import { List, ListItem, ListItemText, Typography } from "@mui/material";
-            return (
-                <>
+    *. Example Component App.tsx to use Material UI components:
+        import { List, ListItem, ListItemText, Typography } from "@mui/material";
+        return (
+            <>
                 <Typography variant='h3'>{title}</Typography>
                 <List>
                     {activites.map((activity) => (
@@ -147,11 +149,11 @@
                         <ListItemText>{activity.title}</ListItemText></ListItem>
                     ))}
                 </List>
-                </>
-            );
+            </>
+        );
 
-    *. Adding HTTPS Support
-        *. Generate a local development certificate.
+🔒 Adding HTTPS Support
+    *. Generate a local development certificate.
         *. Install vite-plugin-mkcert:
             npm install -D vite-plugin-mkcert
         *. Update vite.config.ts:
@@ -166,24 +168,28 @@
 
         *. This generates dev.pem and cert.pem for HTTPS.
 
-    *. Adding or Using Axios for data Fetching
-        https://axios-http.com
-        Axios is a simple promise based HTTP client for the browser and node.js. 
+🌍 Using Axios for Data Fetching
+    *. Documentation
+        Axios simplifies HTTP requests using promises.
+        Axios is a simple promise based HTTP client for the browser and node.js.
         Axios provides a simple to use library in a small package with a very extensible interface.
-        *. Install Axios:
-            npm install axios
-        *. Update App.tsx to fetch data with Axios:
-            import axios from "axios";
-            useEffect(() => {
-                axios.get<Activity[]>("https://localhost:7026/api/activities")
-                .then(response => setActivities(response.data))
-                return () => {}
-            }, []);
+        https://axios-http.com
+    *. Installation
+        npm install axios
+    *. Example with Axios App.tsx to fetch data:
+        import axios from "axios";
+        useEffect(() => {
+            axios.get<Activity[]>("https://localhost:7026/api/activities")
+            .then(response => setActivities(response.data))
+            return () => {}
+        }, []);
         
-*. Summary
-    By following these steps, you have:
-        Created a React project with TypeScript using Vite.
-        Configured VS Code for optimal React development.
-        Connected the frontend to the ASP.NET Core API.
-        Added HTTPS support, Axios for HTTP requests, and Material UI for styling.
-        Used TypeScript models and React hooks for type-safe state management.
+✅ Summary
+    By completing this setup, you have:
+        *. Created a React + TypeScript project using Vite.
+        *. Configured VS Code, HTTPS, and CORS.
+        *. Connected the frontend to the ASP.NET Core API.
+        *. Integrated Axios for HTTP requests.
+        *. Styled with Material UI.
+        *. Used TypeScript models for type-safe data handling.
+        *. Leveraged React Hooks and DevTools for efficient development.

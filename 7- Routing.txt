@@ -16,8 +16,8 @@
     React Router provides several hooks to work with navigation and parameters:
     Hook	                Description
     useNavigate()	        Navigate programmatically to a new route
-    useParams()	            Access route parameters (e.g., /activities/:id)
-    useSearchParams()	    Read and modify query string parameters
+    useParams()	            	Access route parameters (e.g., /activities/:id)
+    useSearchParams()	    	Read and modify query string parameters
     useLocation()	        Get the current route information (pathname, search, state)
 
     *. For full documentation, visit:

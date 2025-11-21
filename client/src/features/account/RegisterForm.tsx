@@ -68,7 +68,7 @@ export default function RegisterForm() {
                 variant='contained'
                 size='large'
             >
-                Login
+                Register
             </Button>
             <Typography sx={{ textAlign: 'center' }}>
                 Already have an account
