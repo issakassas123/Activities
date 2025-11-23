@@ -8,7 +8,7 @@ using Persistence;
 
 namespace Application.Activities.Queries;
 
-public class GetActivityDetails
+public static class GetActivityDetails
 {
     public class Query : IRequest<Result<ActivityDto>>
     {

@@ -7,9 +7,9 @@ using Persistence;
 
 namespace Application.Activities.Queries;
 
-public class GetActivityList
+public static class GetActivityList
 {
-    public class Query : IRequest<List<ActivityDto>> { }
+    public class Query : IRequest<List<ActivityDto>>;
 
     public class Handler(AppDbContext context, IMapper mapper) : IRequestHandler<Query, List<ActivityDto>>
     {
